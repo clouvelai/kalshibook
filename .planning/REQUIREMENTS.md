@@ -97,44 +97,44 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DCOL-01 | — | Pending |
-| DCOL-02 | — | Pending |
-| DCOL-03 | — | Pending |
-| DCOL-04 | — | Pending |
-| DCOL-05 | — | Pending |
-| DCOL-06 | — | Pending |
-| DCOL-07 | — | Pending |
-| DCOL-08 | — | Pending |
-| DSRV-01 | — | Pending |
-| DSRV-02 | — | Pending |
-| DSRV-03 | — | Pending |
-| DSRV-04 | — | Pending |
-| DSRV-05 | — | Pending |
-| STRM-01 | — | Pending |
-| STRM-02 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| BILL-01 | — | Pending |
-| BILL-02 | — | Pending |
-| BILL-03 | — | Pending |
-| BILL-04 | — | Pending |
-| BILL-05 | — | Pending |
-| BILL-06 | — | Pending |
-| DEVX-01 | — | Pending |
-| DEVX-02 | — | Pending |
-| DEVX-03 | — | Pending |
-| DEVX-04 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
+| DCOL-01 | Phase 1 | Pending |
+| DCOL-02 | Phase 1 | Pending |
+| DCOL-03 | Phase 1 | Pending |
+| DCOL-04 | Phase 1 | Pending |
+| DCOL-05 | Phase 1 | Pending |
+| DCOL-06 | Phase 1 | Pending |
+| DCOL-07 | Phase 1 | Pending |
+| DCOL-08 | Phase 1 | Pending |
+| DSRV-01 | Phase 2 | Pending |
+| DSRV-02 | Phase 2 | Pending |
+| DSRV-03 | Phase 2 | Pending |
+| DSRV-04 | Phase 2 | Pending |
+| DSRV-05 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| DEVX-01 | Phase 2 | Pending |
+| DEVX-02 | Phase 2 | Pending |
+| DEVX-03 | Phase 2 | Pending |
+| DEVX-04 | Phase 2 | Pending |
+| BILL-01 | Phase 3 | Pending |
+| BILL-02 | Phase 3 | Pending |
+| BILL-03 | Phase 3 | Pending |
+| BILL-04 | Phase 3 | Pending |
+| BILL-05 | Phase 3 | Pending |
+| BILL-06 | Phase 3 | Pending |
+| STRM-01 | Phase 4 | Pending |
+| STRM-02 | Phase 4 | Pending |
+| DASH-01 | Phase 5 | Pending |
+| DASH-02 | Phase 5 | Pending |
+| DASH-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 32 total
-- Mapped to phases: 0
-- Unmapped: 32 ⚠️
+- Mapped to phases: 32
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-13*
-*Last updated: 2026-02-13 after initial definition*
+*Last updated: 2026-02-13 after roadmap creation*

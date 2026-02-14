@@ -11,7 +11,7 @@ import time
 import asyncpg
 from fastapi import APIRouter, Depends, Request
 
-from src.api.deps import get_api_key, get_db_pool
+from src.api.deps import get_db_pool, require_credits
 from src.api.errors import MarketNotFoundError, NoDataAvailableError
 from src.api.models import OrderbookRequest, OrderbookResponse
 from src.api.services.reconstruction import reconstruct_orderbook
@@ -23,7 +23,7 @@ router = APIRouter(tags=["Orderbook"])
 async def get_orderbook(
     request: Request,
     body: OrderbookRequest,
-    key: dict = Depends(get_api_key),
+    key: dict = Depends(require_credits(5)),
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
     """Reconstruct the orderbook state at a specific historical timestamp.

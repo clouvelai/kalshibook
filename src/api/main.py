@@ -41,6 +41,9 @@ def _rate_limit_key(request: Request) -> str:
     return get_remote_address(request)
 
 
+# Rate limiter set to 120/minute (Project-tier max) as abuse backstop.
+# The credit system (require_credits) is the real enforcement mechanism --
+# free users with 1000 credits/month will exhaust credits before rate limits matter.
 limiter = Limiter(key_func=_rate_limit_key, headers_enabled=True)
 
 
@@ -65,6 +68,13 @@ async def lifespan(app: FastAPI):
         service_role_key=settings.supabase_service_role_key,
     )
     app.state.supabase = supabase
+
+    # Initialize Stripe API key if configured
+    import stripe as stripe_lib
+
+    if settings.stripe_secret_key:
+        stripe_lib.api_key = settings.stripe_secret_key
+        logger.info("stripe_initialized")
 
     logger.info("api_started", host=settings.api_host, port=settings.api_port)
     yield
@@ -141,6 +151,22 @@ async def inject_request_id(request: Request, call_next):
     request.state.request_id = generate_request_id()
     response = await call_next(request)
     response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
+@app.middleware("http")
+async def inject_credit_headers(request: Request, call_next):
+    """Add credit usage headers to every API response.
+
+    These are populated by the require_credits dependency on data endpoints.
+    Non-data endpoints (health, auth, keys) won't have credit info on request.state.
+    """
+    response = await call_next(request)
+    if hasattr(request.state, "credits_remaining"):
+        response.headers["X-Credits-Remaining"] = str(request.state.credits_remaining)
+        response.headers["X-Credits-Used"] = str(request.state.credits_used)
+        response.headers["X-Credits-Total"] = str(request.state.credits_total)
+        response.headers["X-Credits-Cost"] = str(request.state.credits_cost)
     return response
 
 

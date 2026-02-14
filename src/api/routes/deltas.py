@@ -14,7 +14,7 @@ import asyncpg
 import orjson
 from fastapi import APIRouter, Depends, Request
 
-from src.api.deps import get_api_key, get_db_pool
+from src.api.deps import get_db_pool, require_credits
 from src.api.errors import ValidationError
 from src.api.models import DeltaRecord, DeltasRequest, DeltasResponse
 
@@ -48,7 +48,7 @@ def _encode_cursor(ts: datetime, row_id: int) -> str:
 async def get_deltas(
     request: Request,
     body: DeltasRequest,
-    key: dict = Depends(get_api_key),
+    key: dict = Depends(require_credits(2)),
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
     """Query raw orderbook deltas for a market within a time range.

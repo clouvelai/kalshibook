@@ -11,7 +11,7 @@ import time
 import asyncpg
 from fastapi import APIRouter, Depends, Request
 
-from src.api.deps import get_api_key, get_db_pool
+from src.api.deps import get_db_pool, require_credits
 from src.api.errors import MarketNotFoundError
 from src.api.models import MarketDetail, MarketDetailResponse, MarketsResponse, MarketSummary
 
@@ -21,7 +21,7 @@ router = APIRouter(tags=["Markets"])
 @router.get("/markets", response_model=MarketsResponse)
 async def list_markets(
     request: Request,
-    key: dict = Depends(get_api_key),
+    key: dict = Depends(require_credits(1)),
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
     """List all markets with data coverage dates.
@@ -70,7 +70,7 @@ async def list_markets(
 async def get_market_detail(
     request: Request,
     ticker: str,
-    key: dict = Depends(get_api_key),
+    key: dict = Depends(require_credits(1)),
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
     """Get full detail for a single market, including metadata and data counts.

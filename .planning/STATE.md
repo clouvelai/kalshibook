@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-13)
 ## Current Position
 
 Phase: 2 of 5 (REST API + Authentication)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-02-14 -- Completed 02-01 (API Foundation)
+Last activity: 2026-02-14 -- Completed 02-02 (Data Endpoints)
 
-Progress: [███░░░░░░░] 27%
+Progress: [████░░░░░░] 36%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 5min
-- Total execution time: 0.08 hours
+- Total plans completed: 2
+- Average duration: 3.5min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 02 | 1 | 5min | 5min |
+| 02 | 2 | 7min | 3.5min |
 
 **Recent Trend:**
-- Last 5 plans: 5min
-- Trend: baseline
+- Last 5 plans: 5min, 2min
+- Trend: improving
 
 *Updated after each plan completion*
 
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - [02-01]: Deferred supabase-py install due to websockets>=16 conflict; resolve in Plan 02-03
 - [02-01]: Decoupled shared/db.py from collector.metrics using structlog directly
 - [02-01]: Stub route files for Plans 02/03 rather than conditional imports
+- [02-02]: Two-step reconstruction (snapshot + deltas) over single CTE for clarity and debuggability
+- [02-02]: Cursor pagination with orjson-encoded base64 (ts, id) composite cursor
+- [02-02]: Correlated subqueries for market coverage dates (acceptable at MVP scale)
 
 ### Pending Todos
 
@@ -60,5 +63,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 02-01-PLAN.md (API Foundation)
-Resume file: .planning/phases/02-rest-api-authentication/02-01-SUMMARY.md
+Stopped at: Completed 02-02-PLAN.md (Data Endpoints)
+Resume file: .planning/phases/02-rest-api-authentication/02-02-SUMMARY.md

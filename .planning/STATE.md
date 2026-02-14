@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 3 complete -- ready for Phase 4
+**Current focus:** Phase 3 complete (reviewed + simplified) -- ready for Phase 4
 
 ## Current Position
 
 Phase: 3 of 5 (Billing + Monetization) -- COMPLETE
 Plan: 2 of 2 in current phase (all plans complete)
 Status: Phase Complete
-Last activity: 2026-02-14 -- Completed 03-02 (Stripe billing routes, webhooks, AI discovery docs)
+Last activity: 2026-02-14 -- Phase 3 complete, code reviewed + simplified, remaining issues fixed
 
 Progress: [██████░░░░] 60%
 
@@ -61,6 +61,12 @@ Recent decisions affecting current work:
 - [03-02]: Billing endpoints use Supabase JWT auth (not API keys) since they manage account-level state
 - [03-02]: Webhook handlers are idempotent; payment failures logged only (Stripe retries before sending subscription.deleted)
 - [03-02]: PAYG toggle auto-creates Stripe customer to reduce friction
+- [03-review]: Stripe API calls wrapped in try/except for 502 error responses (not silent 500s)
+- [03-review]: CHECK (credits_used >= 0) added as DB-level guard on billing_accounts
+- [03-review]: asyncio.create_task references stored in set to prevent GC killing fire-and-forget tasks
+- [03-review]: deduct_credits RETURNING includes stripe_customer_id (eliminated redundant query)
+- [03-review]: _to_uuid helper extracted, duplicate Stripe customer creation deduplicated
+- [03-review]: No billing-specific tests yet — add when Phase 4/5 test infrastructure is built
 
 ### Pending Todos
 
@@ -73,5 +79,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 03-02-PLAN.md (Stripe billing routes + AI discovery docs) -- Phase 3 complete
+Stopped at: Phase 3 complete (reviewed, simplified, committed) -- ready for Phase 4
 Resume file: None

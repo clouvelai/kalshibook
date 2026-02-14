@@ -60,11 +60,11 @@ Plans:
   2. Free tier users receive 1,000 credits/month and can use the API without entering payment information
   3. Users can upgrade to pay-as-you-go or project tiers via Stripe and their credit allocation adjusts accordingly
   4. When credits are exhausted, further API requests return a clear error message indicating the limit has been reached
-**Plans**: 2 plans
+**Plans**: 2/2 complete
 
 Plans:
-- [ ] 03-01-PLAN.md -- Credit metering infrastructure (DB, billing service, require_credits dependency, headers middleware, endpoint integration)
-- [ ] 03-02-PLAN.md -- Stripe integration (Checkout, Portal, webhooks, PAYG toggle, billing status, llms.txt update)
+- [x] 03-01-PLAN.md -- Credit metering infrastructure (DB, billing service, require_credits dependency, headers middleware, endpoint integration)
+- [x] 03-02-PLAN.md -- Stripe integration (Checkout, Portal, webhooks, PAYG toggle, billing status, llms.txt update)
 
 ### Phase 4: Real-Time Streaming
 **Goal**: Users can subscribe to live orderbook updates via websocket for real-time trading strategy execution
@@ -102,6 +102,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Data Collection Pipeline | 1/1 | Complete | 2026-02-13 |
 | 2. REST API + Authentication | 3/3 | Complete | 2026-02-14 |
-| 3. Billing + Monetization | 0/TBD | Not started | - |
+| 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
 | 4. Real-Time Streaming | 0/TBD | Not started | - |
 | 5. Dashboard | 0/TBD | Not started | - |

@@ -16,6 +16,16 @@ logger = structlog.get_logger("api.billing")
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _to_uuid(value: str | UUID) -> UUID:
+    """Coerce a string to UUID, passing through if already a UUID."""
+    return UUID(value) if isinstance(value, str) else value
+
+
+# ---------------------------------------------------------------------------
 # Billing account management
 # ---------------------------------------------------------------------------
 
@@ -25,13 +35,7 @@ async def ensure_billing_account(pool: asyncpg.Pool, user_id: str) -> dict:
 
     Lazily creates the account on a user's first API request.
     If the account already exists, updates `updated_at` and returns existing row.
-
-    Returns:
-        Dict with user_id, tier, credits_total, credits_used, payg_enabled,
-        billing_cycle_start.
     """
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
-
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -41,11 +45,10 @@ async def ensure_billing_account(pool: asyncpg.Pool, user_id: str) -> dict:
             RETURNING user_id, tier, credits_total, credits_used, payg_enabled,
                       billing_cycle_start, stripe_customer_id
             """,
-            uid,
+            _to_uuid(user_id),
         )
 
     logger.debug("billing_account_ensured", user_id=user_id, tier=row["tier"])
-
     return dict(row)
 
 
@@ -58,11 +61,9 @@ async def lazy_reset_credits(pool: asyncpg.Pool, user_id: str) -> None:
     """Reset credits if the billing cycle has rolled into a new month.
 
     Atomically sets credits_used to 0 and advances billing_cycle_start
-    to the first day of the current month. Idempotent — safe to call
+    to the first day of the current month. Idempotent -- safe to call
     on every request.
     """
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
-
     async with pool.acquire() as conn:
         result = await conn.execute(
             """
@@ -73,7 +74,7 @@ async def lazy_reset_credits(pool: asyncpg.Pool, user_id: str) -> None:
             WHERE user_id = $1
               AND billing_cycle_start < date_trunc('month', now())
             """,
-            uid,
+            _to_uuid(user_id),
         )
 
     if result == "UPDATE 1":
@@ -92,13 +93,11 @@ async def deduct_credits(pool: asyncpg.Pool, user_id: str, cost: int) -> dict | 
     deduction. Allows overdraft only if payg_enabled is TRUE.
 
     Returns:
-        Dict with user_id, tier, credits_total, credits_used, payg_enabled
-        if deduction succeeded. None if insufficient credits and not PAYG.
+        Dict with user_id, tier, credits_total, credits_used, payg_enabled,
+        stripe_customer_id if deduction succeeded.
+        None if insufficient credits and not PAYG.
     """
-    # Reset credits if billing cycle rolled over
     await lazy_reset_credits(pool, user_id)
-
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
 
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -108,9 +107,10 @@ async def deduct_credits(pool: asyncpg.Pool, user_id: str, cost: int) -> dict | 
                 updated_at = now()
             WHERE user_id = $1
               AND (credits_used + $2 <= credits_total OR payg_enabled = TRUE)
-            RETURNING user_id, tier, credits_total, credits_used, payg_enabled
+            RETURNING user_id, tier, credits_total, credits_used, payg_enabled,
+                      stripe_customer_id
             """,
-            uid,
+            _to_uuid(user_id),
             cost,
         )
 
@@ -143,15 +143,13 @@ async def log_key_usage(
     disrupting the request flow.
     """
     try:
-        key_uuid = UUID(api_key_id) if isinstance(api_key_id, str) else api_key_id
-
         async with pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO api_key_usage (api_key_id, endpoint, credits_charged)
                 VALUES ($1, $2, $3)
                 """,
-                key_uuid,
+                _to_uuid(api_key_id),
                 endpoint,
                 credits_charged,
             )
@@ -213,8 +211,6 @@ async def get_billing_status(pool: asyncpg.Pool, user_id: str) -> dict | None:
     Returns:
         Dict with billing account fields, or None if no account exists.
     """
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
-
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -223,7 +219,7 @@ async def get_billing_status(pool: asyncpg.Pool, user_id: str) -> dict | None:
             FROM billing_accounts
             WHERE user_id = $1
             """,
-            uid,
+            _to_uuid(user_id),
         )
 
     if row is None:
@@ -241,8 +237,6 @@ async def update_stripe_customer_id(
     pool: asyncpg.Pool, user_id: str, stripe_customer_id: str
 ) -> None:
     """Store the Stripe customer ID on a billing account."""
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
-
     async with pool.acquire() as conn:
         await conn.execute(
             """
@@ -250,7 +244,7 @@ async def update_stripe_customer_id(
             SET stripe_customer_id = $2, updated_at = now()
             WHERE user_id = $1
             """,
-            uid,
+            _to_uuid(user_id),
             stripe_customer_id,
         )
 
@@ -267,42 +261,34 @@ async def toggle_payg(pool: asyncpg.Pool, user_id: str, enable: bool) -> dict:
 
     When enabling: sets payg_enabled=TRUE.  If currently 'free' tier, upgrades to 'payg'.
     When disabling: sets payg_enabled=FALSE. If no active subscription, reverts to 'free'.
-
-    Returns:
-        Updated billing account dict.
     """
-    uid = UUID(user_id) if isinstance(user_id, str) else user_id
+    uid = _to_uuid(user_id)
+
+    # Tier transition logic differs between enable/disable, but both queries
+    # share the same RETURNING clause and structure.
+    if enable:
+        tier_expr = "CASE WHEN tier = 'free' THEN 'payg' ELSE tier END"
+    else:
+        tier_expr = "CASE WHEN stripe_subscription_id IS NULL THEN 'free' ELSE tier END"
 
     async with pool.acquire() as conn:
-        if enable:
-            row = await conn.fetchrow(
-                """
-                UPDATE billing_accounts
-                SET payg_enabled = TRUE,
-                    tier = CASE WHEN tier = 'free' THEN 'payg' ELSE tier END,
-                    updated_at = now()
-                WHERE user_id = $1
-                RETURNING user_id, tier, credits_total, credits_used, payg_enabled,
-                          billing_cycle_start, stripe_customer_id, stripe_subscription_id
-                """,
-                uid,
-            )
-        else:
-            row = await conn.fetchrow(
-                """
-                UPDATE billing_accounts
-                SET payg_enabled = FALSE,
-                    tier = CASE
-                        WHEN stripe_subscription_id IS NULL THEN 'free'
-                        ELSE tier
-                    END,
-                    updated_at = now()
-                WHERE user_id = $1
-                RETURNING user_id, tier, credits_total, credits_used, payg_enabled,
-                          billing_cycle_start, stripe_customer_id, stripe_subscription_id
-                """,
-                uid,
-            )
+        row = await conn.fetchrow(
+            f"""
+            UPDATE billing_accounts
+            SET payg_enabled = $2,
+                tier = {tier_expr},
+                updated_at = now()
+            WHERE user_id = $1
+            RETURNING user_id, tier, credits_total, credits_used, payg_enabled,
+                      billing_cycle_start, stripe_customer_id, stripe_subscription_id
+            """,
+            uid,
+            enable,
+        )
+
+    if row is None:
+        logger.error("payg_toggle_no_account", user_id=user_id)
+        raise ValueError(f"No billing account found for user {user_id}")
 
     logger.info("payg_toggled", user_id=user_id, enable=enable, tier=row["tier"])
     return dict(row)
@@ -366,7 +352,6 @@ async def sync_subscription_state(pool: asyncpg.Pool, subscription_data: dict) -
                 status=status,
             )
         elif status == "past_due":
-            # Keep project tier — Stripe will retry payment
             await conn.execute(
                 """
                 UPDATE billing_accounts
@@ -413,7 +398,7 @@ async def sync_subscription_state(pool: asyncpg.Pool, subscription_data: dict) -
 async def handle_subscription_canceled(pool: asyncpg.Pool, subscription_data: dict) -> None:
     """Process a subscription.deleted webhook event.
 
-    Downgrades the billing account to free tier.  Idempotent — handles
+    Downgrades the billing account to free tier.  Idempotent -- handles
     missing records gracefully.
     """
     customer_id = subscription_data.get("customer")
@@ -449,29 +434,9 @@ async def handle_payment_failed(pool: asyncpg.Pool, invoice_data: dict) -> None:
     Stripe has its own retry schedule and will eventually send
     customer.subscription.deleted if all retries fail.
     """
-    customer_id = invoice_data.get("customer")
-    invoice_id = invoice_data.get("id")
-    attempt_count = invoice_data.get("attempt_count", 0)
-
     logger.warning(
         "payment_failed",
-        stripe_customer_id=customer_id,
-        invoice_id=invoice_id,
-        attempt_count=attempt_count,
+        stripe_customer_id=invoice_data.get("customer"),
+        invoice_id=invoice_data.get("id"),
+        attempt_count=invoice_data.get("attempt_count", 0),
     )
-
-    if customer_id:
-        async with pool.acquire() as conn:
-            account = await conn.fetchrow(
-                "SELECT user_id, tier FROM billing_accounts WHERE stripe_customer_id = $1",
-                customer_id,
-            )
-            if account:
-                logger.warning(
-                    "payment_failed_account",
-                    user_id=str(account["user_id"]),
-                    tier=account["tier"],
-                    stripe_customer_id=customer_id,
-                    invoice_id=invoice_id,
-                    attempt_count=attempt_count,
-                )

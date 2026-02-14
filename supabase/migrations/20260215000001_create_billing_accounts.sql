@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS billing_accounts (
     tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'payg', 'project')),
     payg_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     credits_total INT NOT NULL DEFAULT 1000,
-    credits_used INT NOT NULL DEFAULT 0,
+    credits_used INT NOT NULL DEFAULT 0 CHECK (credits_used >= 0),
     billing_cycle_start TIMESTAMPTZ NOT NULL DEFAULT date_trunc('month', now()),
     stripe_subscription_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

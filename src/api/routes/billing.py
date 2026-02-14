@@ -36,6 +36,40 @@ router = APIRouter(tags=["Billing"])
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_request_id(request: Request) -> str:
+    """Return the request ID from state, falling back to a fresh one."""
+    return getattr(request.state, "request_id", generate_request_id())
+
+
+async def _ensure_stripe_customer(
+    pool, user_id: str, email: str, account: dict
+) -> str:
+    """Return existing Stripe customer ID, or create one and persist it."""
+    stripe_customer_id = account.get("stripe_customer_id")
+    if stripe_customer_id:
+        return stripe_customer_id
+
+    try:
+        customer = await stripe.Customer.create_async(
+            email=email,
+            metadata={"kalshibook_user_id": str(user_id)},
+        )
+    except stripe.StripeError as exc:
+        logger.error("stripe_customer_create_failed", user_id=user_id, error=str(exc))
+        raise KalshiBookError(
+            code="stripe_error",
+            message="Payment service temporarily unavailable. Please try again.",
+            status=502,
+        )
+    await update_stripe_customer_id(pool, user_id, customer.id)
+    return customer.id
+
+
+# ---------------------------------------------------------------------------
 # GET /billing/status
 # ---------------------------------------------------------------------------
 
@@ -61,7 +95,7 @@ async def billing_status(
         credits_remaining=credits_remaining,
         payg_enabled=account["payg_enabled"],
         billing_cycle_start=account["billing_cycle_start"].isoformat(),
-        request_id=getattr(request.state, "request_id", generate_request_id()),
+        request_id=_get_request_id(request),
     )
 
 
@@ -78,32 +112,30 @@ async def create_checkout(
 ):
     """Create a Stripe Checkout Session for upgrading to the Project plan."""
     settings = get_settings()
-
-    # Ensure billing account exists
     account = await ensure_billing_account(pool, user["user_id"])
-
-    # Create or reuse Stripe customer
-    stripe_customer_id = account.get("stripe_customer_id")
-    if not stripe_customer_id:
-        customer = await stripe.Customer.create_async(
-            email=user["email"],
-            metadata={"kalshibook_user_id": str(user["user_id"])},
-        )
-        stripe_customer_id = customer.id
-        await update_stripe_customer_id(pool, user["user_id"], stripe_customer_id)
-
-    # Create Checkout Session
-    session = await stripe.checkout.Session.create_async(
-        customer=stripe_customer_id,
-        line_items=[{"price": settings.stripe_project_price_id, "quantity": 1}],
-        mode="subscription",
-        success_url=f"{settings.app_url}/billing?success=true",
-        cancel_url=f"{settings.app_url}/billing?canceled=true",
+    stripe_customer_id = await _ensure_stripe_customer(
+        pool, user["user_id"], user["email"], account
     )
+
+    try:
+        session = await stripe.checkout.Session.create_async(
+            customer=stripe_customer_id,
+            line_items=[{"price": settings.stripe_project_price_id, "quantity": 1}],
+            mode="subscription",
+            success_url=f"{settings.app_url}/billing?success=true",
+            cancel_url=f"{settings.app_url}/billing?canceled=true",
+        )
+    except stripe.StripeError as exc:
+        logger.error("stripe_checkout_failed", user_id=user["user_id"], error=str(exc))
+        raise KalshiBookError(
+            code="stripe_error",
+            message="Payment service temporarily unavailable. Please try again.",
+            status=502,
+        )
 
     return CheckoutResponse(
         checkout_url=session.url,
-        request_id=getattr(request.state, "request_id", generate_request_id()),
+        request_id=_get_request_id(request),
     )
 
 
@@ -120,7 +152,6 @@ async def create_portal(
 ):
     """Create a Stripe Customer Portal Session for subscription management."""
     settings = get_settings()
-
     account = await get_billing_status(pool, user["user_id"])
 
     if account is None or not account.get("stripe_customer_id"):
@@ -130,14 +161,22 @@ async def create_portal(
             status=400,
         )
 
-    session = await stripe.billing_portal.Session.create_async(
-        customer=account["stripe_customer_id"],
-        return_url=f"{settings.app_url}/billing",
-    )
+    try:
+        session = await stripe.billing_portal.Session.create_async(
+            customer=account["stripe_customer_id"],
+            return_url=f"{settings.app_url}/billing",
+        )
+    except stripe.StripeError as exc:
+        logger.error("stripe_portal_failed", user_id=user["user_id"], error=str(exc))
+        raise KalshiBookError(
+            code="stripe_error",
+            message="Payment service temporarily unavailable. Please try again.",
+            status=502,
+        )
 
     return PortalResponse(
         portal_url=session.url,
-        request_id=getattr(request.state, "request_id", generate_request_id()),
+        request_id=_get_request_id(request),
     )
 
 
@@ -154,32 +193,22 @@ async def payg_toggle(
     pool=Depends(get_db_pool),
 ):
     """Enable or disable Pay-As-You-Go billing."""
-    # Ensure billing account exists
     account = await ensure_billing_account(pool, user["user_id"])
 
-    # If enabling PAYG, ensure Stripe customer exists
     if body.enable:
-        stripe_customer_id = account.get("stripe_customer_id")
-        if not stripe_customer_id:
-            customer = await stripe.Customer.create_async(
-                email=user["email"],
-                metadata={"kalshibook_user_id": str(user["user_id"])},
-            )
-            stripe_customer_id = customer.id
-            await update_stripe_customer_id(pool, user["user_id"], stripe_customer_id)
+        await _ensure_stripe_customer(pool, user["user_id"], user["email"], account)
 
     updated = await toggle_payg(pool, user["user_id"], body.enable)
 
-    message = (
-        "Pay-As-You-Go enabled. Overage credits will be billed at $0.008/credit."
-        if body.enable
-        else "Pay-As-You-Go disabled. API access will stop when credits are exhausted."
-    )
+    if body.enable:
+        message = "Pay-As-You-Go enabled. Overage credits will be billed at $0.008/credit."
+    else:
+        message = "Pay-As-You-Go disabled. API access will stop when credits are exhausted."
 
     return PaygToggleResponse(
         payg_enabled=updated["payg_enabled"],
         message=message,
-        request_id=getattr(request.state, "request_id", generate_request_id()),
+        request_id=_get_request_id(request),
     )
 
 
@@ -192,7 +221,7 @@ async def payg_toggle(
 async def stripe_webhook(request: Request, pool=Depends(get_db_pool)):
     """Handle Stripe webhook events for subscription lifecycle.
 
-    This endpoint does NOT use get_authenticated_user — it verifies
+    This endpoint does NOT use get_authenticated_user -- it verifies
     the Stripe webhook signature instead.
     """
     settings = get_settings()

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID
+from typing import Set
 
 import asyncpg
 from fastapi import Depends, Request
+
+# Store references to fire-and-forget tasks to prevent GC from killing them
+_background_tasks: Set[asyncio.Task] = set()
 
 from src.api.errors import CreditsExhaustedError, InvalidApiKeyError, KalshiBookError
 from src.api.services.auth import validate_api_key
@@ -66,24 +69,6 @@ async def get_api_key(
 
 
 # ---------------------------------------------------------------------------
-# Credit metering constants
-# ---------------------------------------------------------------------------
-
-CREDIT_COSTS = {
-    "markets": 1,
-    "market_detail": 1,
-    "deltas": 2,
-    "orderbook": 5,
-}
-
-TIER_RATE_LIMITS = {
-    "free": "30/minute",
-    "payg": "60/minute",
-    "project": "120/minute",
-}
-
-
-# ---------------------------------------------------------------------------
 # Credit deduction dependency factory
 # ---------------------------------------------------------------------------
 
@@ -101,41 +86,35 @@ def require_credits(cost: int):
     ) -> dict:
         user_id = key["user_id"]
 
-        # Ensure billing account exists (lazy upsert on first request)
         await ensure_billing_account(pool, user_id)
 
-        # Atomic credit deduction
         row = await deduct_credits(pool, user_id, cost)
         if row is None:
             raise CreditsExhaustedError()
 
         credits_remaining = max(0, row["credits_total"] - row["credits_used"])
 
-        # Store credit info on request.state for response headers
+        # Populate request.state for the credit headers middleware
         request.state.credits_remaining = credits_remaining
         request.state.credits_used = row["credits_used"]
         request.state.credits_total = row["credits_total"]
         request.state.credits_cost = cost
         request.state.tier = row["tier"]
 
-        # If PAYG and over allocation, report overage to Stripe (fire-and-forget)
-        if row["payg_enabled"] and row["credits_used"] > row["credits_total"]:
-            billing = await pool.fetchrow(
-                "SELECT stripe_customer_id FROM billing_accounts WHERE user_id = $1",
-                UUID(key["user_id"]) if isinstance(key["user_id"], str) else key["user_id"],
+        # Report PAYG overage to Stripe (fire-and-forget)
+        stripe_customer_id = row.get("stripe_customer_id")
+        if row["payg_enabled"] and row["credits_used"] > row["credits_total"] and stripe_customer_id:
+            settings = get_settings()
+            task = asyncio.create_task(
+                report_stripe_usage(stripe_customer_id, cost, settings.stripe_meter_event_name)
             )
-            if billing and billing["stripe_customer_id"]:
-                settings = get_settings()
-                asyncio.create_task(
-                    report_stripe_usage(
-                        billing["stripe_customer_id"],
-                        cost,
-                        settings.stripe_meter_event_name,
-                    )
-                )
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
 
         # Log per-key usage (fire-and-forget)
-        asyncio.create_task(log_key_usage(pool, key["id"], request.url.path, cost))
+        task = asyncio.create_task(log_key_usage(pool, key["id"], request.url.path, cost))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
         return {**key, "tier": row["tier"]}
 
@@ -166,7 +145,6 @@ async def get_authenticated_user(request: Request) -> dict:
 
     token = auth_header.removeprefix("Bearer ").strip()
 
-    # Supabase JWT tokens don't start with "kb-"
     if token.startswith("kb-"):
         raise KalshiBookError(
             code="invalid_auth_method",
@@ -177,7 +155,6 @@ async def get_authenticated_user(request: Request) -> dict:
             status=401,
         )
 
-    # Validate JWT via Supabase Auth
     supabase = request.app.state.supabase
     user = await supabase.get_user(token)
 

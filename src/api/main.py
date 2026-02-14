@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import stripe
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,11 +70,8 @@ async def lifespan(app: FastAPI):
     )
     app.state.supabase = supabase
 
-    # Initialize Stripe API key if configured
-    import stripe as stripe_lib
-
     if settings.stripe_secret_key:
-        stripe_lib.api_key = settings.stripe_secret_key
+        stripe.api_key = settings.stripe_secret_key
         logger.info("stripe_initialized")
 
     logger.info("api_started", host=settings.api_host, port=settings.api_port)

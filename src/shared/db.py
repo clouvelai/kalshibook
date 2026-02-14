@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncpg
+import structlog
 
-from src.collector.metrics import get_logger
-
-logger = get_logger("db")
+logger = structlog.get_logger("db")
 
 # Module-level pool singleton
 _pool: asyncpg.Pool | None = None

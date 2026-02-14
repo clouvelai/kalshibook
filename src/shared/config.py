@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     hot_storage_days: int = 7
     archive_bucket: str = "orderbook-archive"
 
+    # API Server
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+    api_rate_limit_default: int = 100  # requests per minute
+
     # DB pool
     db_pool_min_size: int = 5
     db_pool_max_size: int = 20

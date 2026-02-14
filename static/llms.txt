@@ -1,0 +1,32 @@
+# KalshiBook API
+
+> Historical L2 orderbook data API for Kalshi prediction markets. Query reconstructed orderbook state at any timestamp, raw deltas, and market metadata.
+
+KalshiBook provides programmatic access to historical Kalshi orderbook data for backtesting trading strategies and building automated trading systems.
+
+## API Reference
+- [OpenAPI Spec](/openapi.json): Full API specification
+- [Interactive Docs](/docs): Swagger UI for testing endpoints
+- [ReDoc](/redoc): Alternative API documentation
+
+## Endpoints
+- [POST /orderbook](/docs#/Orderbook/get_orderbook_orderbook_post): Reconstruct orderbook state at any historical timestamp
+- [POST /deltas](/docs#/Deltas/get_deltas_deltas_post): Query raw orderbook deltas by market and time range (paginated)
+- [GET /markets](/docs#/Markets/list_markets_markets_get): List available markets with data coverage dates
+- [GET /markets/{ticker}](/docs#/Markets/get_market_markets__ticker__get): Get market metadata and contract details
+
+## Authentication
+All data endpoints require an API key sent as `Authorization: Bearer kb-YOUR_KEY`.
+
+To get an API key:
+1. Create an account: `POST /auth/signup` with `{"email": "...", "password": "..."}`
+2. Login: `POST /auth/login` with `{"email": "...", "password": "..."}`
+3. Create a key: `POST /keys` with `{"name": "My Key"}` using your access token
+
+## Key Management
+- [POST /keys](/docs#/API%20Keys): Create a new API key (requires access token)
+- [GET /keys](/docs#/API%20Keys): List your API keys
+- [DELETE /keys/{id}](/docs#/API%20Keys): Revoke an API key
+
+## Optional
+- [GET /health](/docs#/Health/health_check_health_get): Health check endpoint

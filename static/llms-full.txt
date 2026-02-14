@@ -1,0 +1,515 @@
+# KalshiBook API
+
+> Historical L2 orderbook data API for Kalshi prediction markets. Query reconstructed orderbook state at any timestamp, raw deltas, and market metadata.
+
+KalshiBook provides programmatic access to historical Kalshi orderbook data for backtesting trading strategies and building automated trading systems. Kalshi is a CFTC-regulated prediction market exchange where markets are binary event contracts with continuous orderbooks.
+
+## Base URL
+
+```
+https://api.kalshibook.com
+```
+
+## API Reference
+- [OpenAPI Spec](/openapi.json): Full API specification (machine-readable)
+- [Interactive Docs](/docs): Swagger UI for testing endpoints
+- [ReDoc](/redoc): Alternative API documentation
+
+---
+
+## Authentication
+
+### Overview
+
+KalshiBook uses two authentication methods:
+
+1. **Supabase JWT tokens** -- for account management (signup, login, key management)
+2. **API keys** -- for all data endpoints (orderbook, deltas, markets)
+
+API keys are prefixed with `kb-` and sent via the Authorization header:
+```
+Authorization: Bearer kb-YOUR_API_KEY
+```
+
+### Getting Started
+
+**Step 1: Create an account**
+```bash
+curl -X POST /auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "securepassword123"}'
+```
+
+Response:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "v1.MQ...",
+  "user_id": "uuid-string",
+  "request_id": "req_abc123"
+}
+```
+
+**Step 2: Create an API key**
+```bash
+curl -X POST /keys \
+  -H "Authorization: Bearer <access_token_from_step_1>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Trading Bot"}'
+```
+
+Response:
+```json
+{
+  "data": {
+    "id": "uuid-string",
+    "key": "kb-abc123...",
+    "name": "My Trading Bot",
+    "key_prefix": "kb-abc1",
+    "created_at": "2026-01-15T10:30:00Z"
+  },
+  "request_id": "req_def456"
+}
+```
+
+**Important:** The raw API key (`kb-...`) is shown only once at creation time. Store it securely.
+
+**Step 3: Use your API key for data queries**
+```bash
+curl -X POST /orderbook \
+  -H "Authorization: Bearer kb-abc123..." \
+  -H "Content-Type: application/json" \
+  -d '{"market_ticker": "KXBTCD-25FEB14-B97000", "timestamp": "2026-02-14T12:00:00Z"}'
+```
+
+---
+
+## Authentication Endpoints
+
+### POST /auth/signup
+
+Create a new user account.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+- `password` must be at least 8 characters
+
+**Response (200):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "v1.MQ...",
+  "user_id": "uuid-string",
+  "request_id": "req_abc123"
+}
+```
+
+**Errors:**
+- `409 user_already_exists` -- email already registered
+- `422 weak_password` -- password doesn't meet requirements
+
+### POST /auth/login
+
+Authenticate with email and password.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response (200):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "v1.MQ...",
+  "user_id": "uuid-string",
+  "request_id": "req_abc123"
+}
+```
+
+**Errors:**
+- `401 invalid_credentials` -- wrong email or password
+
+---
+
+## Key Management Endpoints
+
+All key management endpoints require a Supabase access token (from POST /auth/login).
+
+### POST /keys
+
+Create a new API key for the authenticated user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Request:**
+```json
+{
+  "name": "My Trading Bot"
+}
+```
+
+- `name` is optional (default: "Default"), max 100 characters
+
+**Response (200):**
+```json
+{
+  "data": {
+    "id": "uuid-string",
+    "key": "kb-abc123def456...",
+    "name": "My Trading Bot",
+    "key_prefix": "kb-abc1",
+    "created_at": "2026-01-15T10:30:00Z"
+  },
+  "request_id": "req_abc123"
+}
+```
+
+### GET /keys
+
+List all active API keys for the authenticated user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": "uuid-string",
+      "name": "My Trading Bot",
+      "key_prefix": "kb-abc1",
+      "created_at": "2026-01-15T10:30:00Z",
+      "last_used_at": "2026-02-14T08:15:00Z"
+    }
+  ],
+  "request_id": "req_abc123"
+}
+```
+
+Note: Raw keys are never returned after creation. Only the prefix is shown for identification.
+
+### DELETE /keys/{key_id}
+
+Revoke an API key. The key must belong to the authenticated user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200):**
+```json
+{
+  "message": "API key revoked",
+  "request_id": "req_abc123"
+}
+```
+
+**Errors:**
+- `404 key_not_found` -- key doesn't exist or already revoked
+- `401 invalid_auth_method` -- sent an API key instead of access token
+
+---
+
+## Data Endpoints
+
+All data endpoints require an API key: `Authorization: Bearer kb-YOUR_KEY`
+
+### POST /orderbook
+
+Reconstruct the L2 orderbook state at any historical timestamp. KalshiBook stores periodic snapshots and incremental deltas, then replays deltas on top of the nearest snapshot to reconstruct the exact orderbook state at the requested time.
+
+**Request:**
+```json
+{
+  "market_ticker": "KXBTCD-25FEB14-B97000",
+  "timestamp": "2026-02-14T12:00:00Z",
+  "depth": null
+}
+```
+
+- `market_ticker` (required): Kalshi market ticker
+- `timestamp` (required): ISO 8601 timestamp to reconstruct at
+- `depth` (optional): Limit the number of price levels returned (default: all)
+
+**Response (200):**
+```json
+{
+  "market_ticker": "KXBTCD-25FEB14-B97000",
+  "timestamp": "2026-02-14T12:00:00Z",
+  "snapshot_basis": "2026-02-14T11:55:00Z",
+  "deltas_applied": 47,
+  "yes": [
+    {"price": 65, "quantity": 150},
+    {"price": 60, "quantity": 300},
+    {"price": 55, "quantity": 200}
+  ],
+  "no": [
+    {"price": 40, "quantity": 100},
+    {"price": 35, "quantity": 250}
+  ],
+  "request_id": "req_abc123",
+  "response_time": 0.045
+}
+```
+
+- `yes` and `no` arrays contain price levels sorted by price descending
+- `price` is in cents (1-99 for prediction markets)
+- `quantity` is the total number of contracts at that level
+- `snapshot_basis` shows which snapshot was used as the reconstruction starting point
+- `deltas_applied` shows how many incremental changes were replayed
+
+**Errors:**
+- `404 market_not_found` -- ticker doesn't exist in the database
+- `404 no_data_available` -- no data exists for the requested timestamp
+- `400 invalid_timestamp` -- timestamp is malformed or in the future
+
+### POST /deltas
+
+Query raw orderbook delta events for a market within a time range. Results are paginated using cursor-based pagination for consistent performance.
+
+**Request:**
+```json
+{
+  "market_ticker": "KXBTCD-25FEB14-B97000",
+  "start_time": "2026-02-14T10:00:00Z",
+  "end_time": "2026-02-14T12:00:00Z",
+  "cursor": null,
+  "limit": 100
+}
+```
+
+- `market_ticker` (required): Kalshi market ticker
+- `start_time` (required): Start of time range (inclusive)
+- `end_time` (required): End of time range (inclusive)
+- `cursor` (optional): Pagination cursor from previous response
+- `limit` (optional): Results per page, 1-1000 (default: 100)
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "ts": "2026-02-14T10:00:01.234Z",
+      "seq": 12345,
+      "price_cents": 65,
+      "delta_amount": 50,
+      "side": "yes"
+    },
+    {
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "ts": "2026-02-14T10:00:01.234Z",
+      "seq": 12346,
+      "price_cents": 35,
+      "delta_amount": -25,
+      "side": "no"
+    }
+  ],
+  "next_cursor": "eyJ0cyI6IjIwMjYtMDItMTRUMTI6MDA...",
+  "has_more": true,
+  "request_id": "req_abc123",
+  "response_time": 0.032
+}
+```
+
+- Deltas are ordered by sequence number (`seq`) ascending
+- `delta_amount` is positive for additions and negative for removals
+- `next_cursor` is null when there are no more results
+- Use `next_cursor` as the `cursor` parameter in the next request to paginate
+
+### GET /markets
+
+List all available markets with data coverage information.
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "ticker": "KXBTCD-25FEB14-B97000",
+      "title": "BTC above $97,000 on Feb 14?",
+      "event_ticker": "KXBTCD",
+      "status": "active",
+      "category": "Crypto",
+      "first_data_at": "2026-02-10T00:00:00Z",
+      "last_data_at": "2026-02-14T15:30:00Z"
+    }
+  ],
+  "request_id": "req_abc123",
+  "response_time": 0.015
+}
+```
+
+- `first_data_at` and `last_data_at` define the time range where orderbook data is available
+- Use these to know which timestamps are valid for `/orderbook` queries
+
+### GET /markets/{ticker}
+
+Get detailed metadata for a specific market.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "ticker": "KXBTCD-25FEB14-B97000",
+    "title": "BTC above $97,000 on Feb 14?",
+    "event_ticker": "KXBTCD",
+    "status": "active",
+    "category": "Crypto",
+    "first_data_at": "2026-02-10T00:00:00Z",
+    "last_data_at": "2026-02-14T15:30:00Z",
+    "rules": "This market will resolve Yes if...",
+    "strike_price": 97000.0,
+    "discovered_at": "2026-02-10T00:00:00Z",
+    "metadata": {},
+    "snapshot_count": 576,
+    "delta_count": 48320
+  },
+  "request_id": "req_abc123",
+  "response_time": 0.008
+}
+```
+
+- `snapshot_count` and `delta_count` indicate how much data is available
+- More snapshots = faster orderbook reconstruction (less delta replay needed)
+
+---
+
+## Error Handling
+
+All errors return a consistent JSON envelope:
+
+```json
+{
+  "error": {
+    "code": "error_code",
+    "message": "Human-readable error description",
+    "status": 401
+  },
+  "request_id": "req_abc123"
+}
+```
+
+### Error Codes
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `invalid_api_key` | 401 | API key is missing, malformed, or revoked |
+| `invalid_credentials` | 401 | Wrong email or password |
+| `invalid_auth_method` | 401 | Used API key where access token is needed (or vice versa) |
+| `user_already_exists` | 409 | Email already registered |
+| `weak_password` | 422 | Password doesn't meet strength requirements |
+| `validation_error` | 422 | Request body failed validation |
+| `market_not_found` | 404 | Market ticker doesn't exist |
+| `no_data_available` | 404 | No data for the requested time range |
+| `key_not_found` | 404 | API key not found or already revoked |
+| `invalid_timestamp` | 400 | Timestamp is malformed or out of range |
+| `rate_limit_exceeded` | 429 | Too many requests, retry after indicated time |
+| `internal_error` | 500 | Unexpected server error |
+
+---
+
+## Rate Limiting
+
+All endpoints are rate-limited. Current default: 100 requests per minute per API key.
+
+Rate limit status is returned in response headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests allowed in the window |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp when the window resets |
+
+When rate limited (429 response), the `Retry-After` header indicates seconds to wait.
+
+Unauthenticated endpoints (/auth/signup, /auth/login) are rate-limited by IP address.
+
+---
+
+## Backtesting Workflow
+
+A typical backtesting workflow using KalshiBook:
+
+1. **Discover markets:** `GET /markets` to find markets with data
+2. **Check coverage:** Look at `first_data_at` and `last_data_at` for your target market
+3. **Sample orderbook state:** `POST /orderbook` at each timestamp in your backtest
+4. **Get raw deltas:** `POST /deltas` if you need tick-level data for fine-grained analysis
+
+### Example: Backtest a market-making strategy
+
+```python
+import httpx
+
+BASE = "https://api.kalshibook.com"
+HEADERS = {"Authorization": "Bearer kb-YOUR_KEY"}
+
+# 1. Find a market
+markets = httpx.get(f"{BASE}/markets", headers=HEADERS).json()
+ticker = markets["data"][0]["ticker"]
+
+# 2. Get orderbook at a specific time
+book = httpx.post(f"{BASE}/orderbook", headers=HEADERS, json={
+    "market_ticker": ticker,
+    "timestamp": "2026-02-14T12:00:00Z"
+}).json()
+
+# 3. Analyze the orderbook
+for level in book["yes"]:
+    print(f"  Yes @ {level['price']}c: {level['quantity']} contracts")
+for level in book["no"]:
+    print(f"  No  @ {level['price']}c: {level['quantity']} contracts")
+
+# 4. Get raw deltas for tick analysis
+deltas = httpx.post(f"{BASE}/deltas", headers=HEADERS, json={
+    "market_ticker": ticker,
+    "start_time": "2026-02-14T11:00:00Z",
+    "end_time": "2026-02-14T12:00:00Z",
+    "limit": 1000
+}).json()
+
+print(f"Got {len(deltas['data'])} deltas, has_more={deltas['has_more']}")
+```
+
+---
+
+## Orderbook Reconstruction
+
+KalshiBook reconstructs orderbook state using a snapshot-plus-delta approach:
+
+1. The system stores periodic snapshots of the full orderbook (every ~5 minutes)
+2. Between snapshots, every change to the orderbook is recorded as a delta
+3. To reconstruct the orderbook at timestamp T:
+   - Find the most recent snapshot before T
+   - Fetch all deltas between that snapshot and T
+   - Apply each delta to the snapshot in sequence order
+
+This approach provides exact orderbook state at any historical point while keeping storage efficient.
+
+---
+
+## Optional Endpoints
+
+### GET /health
+
+Health check endpoint. Returns 200 if the service is running.
+
+```json
+{"status": "ok"}
+```
+
+### GET /llms.txt
+
+This file -- AI agent discovery information (markdown).
+
+### GET /llms-full.txt
+
+Comprehensive API reference for AI agents (this document).

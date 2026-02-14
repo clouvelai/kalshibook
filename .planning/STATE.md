@@ -48,7 +48,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+1. **Hydrate market metadata via REST API on discovery** (collector) — When joining a market mid-stream, fetch open_time/metadata from Kalshi REST API so we know how late we are. Fits Phase 2.
 
 ### Blockers/Concerns
 

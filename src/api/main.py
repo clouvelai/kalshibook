@@ -16,7 +16,8 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from src.api.errors import generate_request_id, register_exception_handlers
-from src.api.routes import deltas, keys, markets, orderbook
+from src.api.routes import auth, deltas, keys, markets, orderbook
+from src.api.services.supabase_auth import create_supabase_auth_client
 from src.shared.config import get_settings
 from src.shared.db import close_pool, create_pool
 
@@ -44,7 +45,7 @@ limiter = Limiter(key_func=_rate_limit_key, headers_enabled=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle: DB pool creation and teardown."""
+    """Manage application lifecycle: DB pool, Supabase client creation and teardown."""
     settings = get_settings()
     pool = await create_pool(
         dsn=settings.database_url,
@@ -52,8 +53,17 @@ async def lifespan(app: FastAPI):
         max_size=settings.db_pool_max_size,
     )
     app.state.pool = pool
+
+    # Initialize Supabase Auth client (uses httpx, not supabase-py)
+    supabase = await create_supabase_auth_client(
+        supabase_url=settings.supabase_url,
+        service_role_key=settings.supabase_service_role_key,
+    )
+    app.state.supabase = supabase
+
     logger.info("api_started", host=settings.api_host, port=settings.api_port)
     yield
+    await supabase.close()
     await close_pool()
     logger.info("api_stopped")
 
@@ -109,6 +119,7 @@ async def health_check():
 # Router registration
 # ---------------------------------------------------------------------------
 
+app.include_router(auth.router)
 app.include_router(orderbook.router)
 app.include_router(deltas.router)
 app.include_router(markets.router)

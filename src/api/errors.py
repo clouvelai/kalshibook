@@ -83,6 +83,20 @@ class InvalidTimestampError(KalshiBookError):
         super().__init__(code="invalid_timestamp", message=message, status=400)
 
 
+class CreditsExhaustedError(KalshiBookError):
+    """Raised when the user has exhausted their monthly credit allocation."""
+
+    def __init__(self):
+        super().__init__(
+            code="credits_exhausted",
+            message=(
+                "Monthly credit limit reached. Enable Pay-As-You-Go for continued "
+                "access or upgrade to the Project plan at /billing/checkout."
+            ),
+            status=429,
+        )
+
+
 class ValidationError(KalshiBookError):
     """Raised for custom validation failures beyond Pydantic's built-in checks."""
 

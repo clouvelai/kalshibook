@@ -194,6 +194,51 @@ class AuthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Billing models
+# ---------------------------------------------------------------------------
+
+
+class BillingStatusResponse(BaseModel):
+    """Current billing account status."""
+
+    tier: str = Field(description="Billing tier: free, payg, or project")
+    credits_total: int = Field(description="Total credits allocated for the billing cycle")
+    credits_used: int = Field(description="Credits consumed in the current billing cycle")
+    credits_remaining: int = Field(description="Credits remaining (total - used)")
+    payg_enabled: bool = Field(description="Whether Pay-As-You-Go is enabled")
+    billing_cycle_start: str = Field(description="Start of current billing cycle (ISO 8601)")
+    request_id: str
+
+
+class PaygToggleRequest(BaseModel):
+    """Request to enable or disable Pay-As-You-Go billing."""
+
+    enable: bool = Field(description="True to enable PAYG, False to disable")
+
+
+class PaygToggleResponse(BaseModel):
+    """Response after toggling PAYG status."""
+
+    payg_enabled: bool = Field(description="Current PAYG status after toggle")
+    message: str = Field(description="Human-readable status message")
+    request_id: str
+
+
+class CheckoutResponse(BaseModel):
+    """Response with a Stripe Checkout Session URL."""
+
+    checkout_url: str = Field(description="Stripe Checkout URL — redirect user here")
+    request_id: str
+
+
+class PortalResponse(BaseModel):
+    """Response with a Stripe Customer Portal URL."""
+
+    portal_url: str = Field(description="Stripe Customer Portal URL for subscription management")
+    request_id: str
+
+
+# ---------------------------------------------------------------------------
 # Error models (for OpenAPI spec documentation)
 # ---------------------------------------------------------------------------
 

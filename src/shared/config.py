@@ -36,10 +36,19 @@ class Settings(BaseSettings):
     hot_storage_days: int = 7
     archive_bucket: str = "orderbook-archive"
 
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_project_price_id: str = ""
+    stripe_meter_event_name: str = "kalshibook_api_credits"
+
+    # Frontend
+    app_url: str = "http://localhost:3000"
+
     # API Server
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    api_rate_limit_default: int = 100  # requests per minute
+    api_rate_limit_default: int = 120  # requests per minute (backstop; credits enforce real limits)
 
     # DB pool
     db_pool_min_size: int = 5

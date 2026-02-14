@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from src.api.errors import generate_request_id, register_exception_handlers
-from src.api.routes import auth, deltas, keys, markets, orderbook
+from src.api.routes import auth, billing, deltas, keys, markets, orderbook
 from src.api.services.supabase_auth import create_supabase_auth_client
 from src.shared.config import get_settings
 from src.shared.db import close_pool, create_pool
@@ -121,6 +121,13 @@ app = FastAPI(
             "description": "List and inspect available markets with data coverage info.",
         },
         {
+            "name": "Billing",
+            "description": (
+                "Credit-based billing, Stripe subscription management, "
+                "and usage tracking."
+            ),
+        },
+        {
             "name": "Health",
             "description": "Service health checks.",
         },
@@ -205,3 +212,4 @@ app.include_router(orderbook.router)
 app.include_router(deltas.router)
 app.include_router(markets.router)
 app.include_router(keys.router)
+app.include_router(billing.router)

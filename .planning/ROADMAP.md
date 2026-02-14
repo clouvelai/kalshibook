@@ -12,7 +12,7 @@ KalshiBook delivers a monetized L2 orderbook data API for Kalshi prediction mark
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Data Collection Pipeline** - Persistent websocket collector that captures and stores L2 orderbook data from Kalshi
+- [x] **Phase 1: Data Collection Pipeline** - Persistent websocket collector that captures and stores L2 orderbook data from Kalshi
 - [ ] **Phase 2: REST API + Authentication** - Serve historical orderbook data via authenticated REST endpoints with developer documentation
 - [ ] **Phase 3: Billing + Monetization** - Credit-based pricing with Stripe subscriptions and usage metering
 - [ ] **Phase 4: Real-Time Streaming** - Live orderbook updates via websocket for subscribers
@@ -29,11 +29,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Orderbook snapshots and deltas for subscribed markets are stored in Supabase with accurate timestamps and can be queried via SQL
   3. Sequence gaps on incoming deltas are detected and trigger automatic re-snapshot recovery (no silent data corruption)
   4. New markets appearing on Kalshi are auto-discovered and subscribed to without manual intervention
-**Plans**: TBD
+**Plans**: 1/1 complete
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [x] 01-01: Implement collector, storage, and discovery (shipped outside GSD tracking)
 
 ### Phase 2: REST API + Authentication
 **Goal**: Users can query historical orderbook state, raw deltas, and market metadata through authenticated API endpoints with rate limiting, consistent error handling, and auto-generated documentation
@@ -45,12 +44,12 @@ Plans:
   3. User can create an account, generate an API key, and authenticate requests using the X-API-Key header
   4. Requests without a valid API key or exceeding rate limits receive clear, structured error responses with standard rate-limit headers
   5. OpenAPI spec is served at /openapi.json, interactive docs are available, and /llms.txt discovery files exist for AI agents
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — FastAPI app foundation, error handling, Pydantic models, API key migration, auth service
+- [ ] 02-02-PLAN.md — Data serving endpoints (orderbook reconstruction, deltas, markets)
+- [ ] 02-03-PLAN.md — Auth proxy, key management, rate limiting, llms.txt
 
 ### Phase 3: Billing + Monetization
 **Goal**: API access is metered by credits, free tier users get 1,000 credits/month without a credit card, and paid users manage subscriptions through Stripe
@@ -101,8 +100,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Collection Pipeline | 0/TBD | Not started | - |
-| 2. REST API + Authentication | 0/TBD | Not started | - |
+| 1. Data Collection Pipeline | 1/1 | Complete | 2026-02-13 |
+| 2. REST API + Authentication | 0/3 | Not started | - |
 | 3. Billing + Monetization | 0/TBD | Not started | - |
 | 4. Real-Time Streaming | 0/TBD | Not started | - |
 | 5. Dashboard | 0/TBD | Not started | - |

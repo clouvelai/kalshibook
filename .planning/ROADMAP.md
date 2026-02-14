@@ -13,7 +13,7 @@ KalshiBook delivers a monetized L2 orderbook data API for Kalshi prediction mark
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Data Collection Pipeline** - Persistent websocket collector that captures and stores L2 orderbook data from Kalshi
-- [ ] **Phase 2: REST API + Authentication** - Serve historical orderbook data via authenticated REST endpoints with developer documentation
+- [x] **Phase 2: REST API + Authentication** - Serve historical orderbook data via authenticated REST endpoints with developer documentation
 - [ ] **Phase 3: Billing + Monetization** - Credit-based pricing with Stripe subscriptions and usage metering
 - [ ] **Phase 4: Real-Time Streaming** - Live orderbook updates via websocket for subscribers
 - [ ] **Phase 5: Dashboard** - Self-service web UI for API key management, usage tracking, and billing
@@ -44,12 +44,12 @@ Plans:
   3. User can create an account, generate an API key, and authenticate requests using the X-API-Key header
   4. Requests without a valid API key or exceeding rate limits receive clear, structured error responses with standard rate-limit headers
   5. OpenAPI spec is served at /openapi.json, interactive docs are available, and /llms.txt discovery files exist for AI agents
-**Plans**: 3 plans
+**Plans**: 3/3 complete
 
 Plans:
-- [ ] 02-01-PLAN.md — FastAPI app foundation, error handling, Pydantic models, API key migration, auth service
-- [ ] 02-02-PLAN.md — Data serving endpoints (orderbook reconstruction, deltas, markets)
-- [ ] 02-03-PLAN.md — Auth proxy, key management, rate limiting, llms.txt
+- [x] 02-01-PLAN.md — FastAPI app foundation, error handling, Pydantic models, API key migration, auth service
+- [x] 02-02-PLAN.md — Data serving endpoints (orderbook reconstruction, deltas, markets)
+- [x] 02-03-PLAN.md — Auth proxy, key management, rate limiting, llms.txt
 
 ### Phase 3: Billing + Monetization
 **Goal**: API access is metered by credits, free tier users get 1,000 credits/month without a credit card, and paid users manage subscriptions through Stripe
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Collection Pipeline | 1/1 | Complete | 2026-02-13 |
-| 2. REST API + Authentication | 0/3 | Not started | - |
+| 2. REST API + Authentication | 3/3 | Complete | 2026-02-14 |
 | 3. Billing + Monetization | 0/TBD | Not started | - |
 | 4. Real-Time Streaming | 0/TBD | Not started | - |
 | 5. Dashboard | 0/TBD | Not started | - |

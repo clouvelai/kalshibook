@@ -7,12 +7,16 @@ requires-python = ">=3.12"
 dependencies = [
     "asyncpg>=0.31.0",
     "cryptography>=46.0.5",
+    "fastapi>=0.129.0",
     "httpx>=0.28.1",
     "orjson>=3.11.7",
     "pyarrow>=23.0.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
+    "python-multipart>=0.0.22",
+    "slowapi>=0.1.9",
     "structlog>=25.5.0",
+    "uvicorn>=0.40.0",
     "websockets>=16.0",
 ]
 

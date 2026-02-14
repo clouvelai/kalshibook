@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-13)
 ## Current Position
 
 Phase: 2 of 5 (REST API + Authentication)
-Plan: 2 of 3 in current phase
-Status: Executing
-Last activity: 2026-02-14 -- Completed 02-02 (Data Endpoints)
+Plan: 3 of 3 in current phase
+Status: Phase Complete
+Last activity: 2026-02-14 -- Completed 02-03 (Auth Proxy, Key Mgmt, AI Discovery)
 
-Progress: [████░░░░░░] 36%
+Progress: [█████░░░░░] 45%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 3.5min
-- Total execution time: 0.12 hours
+- Total plans completed: 3
+- Average duration: 4min
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 02 | 2 | 7min | 3.5min |
+| 02 | 3 | 12min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 2min
-- Trend: improving
+- Last 5 plans: 5min, 2min, 5min
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -51,6 +51,9 @@ Recent decisions affecting current work:
 - [02-02]: Two-step reconstruction (snapshot + deltas) over single CTE for clarity and debuggability
 - [02-02]: Cursor pagination with orjson-encoded base64 (ts, id) composite cursor
 - [02-02]: Correlated subqueries for market coverage dates (acceptable at MVP scale)
+- [02-03]: Used httpx directly against Supabase GoTrue REST API instead of supabase-py (websockets conflict resolved permanently)
+- [02-03]: Separated JWT auth (key management) from API key auth (data endpoints) via distinct dependencies
+- [02-03]: llms-full.txt at 515 lines covers full auth flow, all endpoints, error codes, backtesting workflow
 
 ### Pending Todos
 
@@ -58,10 +61,10 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- supabase-py requires websockets<16 but project uses websockets>=16.0 (Kalshi WS collector). Must resolve for Plan 02-03 auth proxy endpoints.
+- None active. supabase-py websockets conflict resolved by building httpx GoTrue client (02-03).
 
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 02-02-PLAN.md (Data Endpoints)
-Resume file: .planning/phases/02-rest-api-authentication/02-02-SUMMARY.md
+Stopped at: Completed 02-03-PLAN.md (Auth Proxy, Key Mgmt, AI Discovery) -- Phase 02 complete
+Resume file: .planning/phases/02-rest-api-authentication/02-03-SUMMARY.md

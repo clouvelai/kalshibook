@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 1 - Data Collection Pipeline
+**Current focus:** Phase 2 - REST API + Authentication
 
 ## Current Position
 
-Phase: 1 of 5 (Data Collection Pipeline)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-13 -- Roadmap created from 32 v1 requirements across 5 phases
+Phase: 2 of 5 (REST API + Authentication)
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-02-14 -- Completed 02-01 (API Foundation)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 27%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 5min
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 02 | 1 | 5min | 5min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 5min
+- Trend: baseline
 
 *Updated after each plan completion*
 
@@ -45,6 +45,9 @@ Recent decisions affecting current work:
 - [Roadmap]: Custom FastAPI for all customer-facing endpoints, not Supabase PostgREST (reconstruction + metering need app logic)
 - [Roadmap]: Custom websocket server for subscriber feeds, not Supabase Realtime (Python client unmaintained, 8KB NOTIFY limit)
 - [Roadmap]: Native Postgres partitioning, not TimescaleDB (deprecated on Supabase PG17)
+- [02-01]: Deferred supabase-py install due to websockets>=16 conflict; resolve in Plan 02-03
+- [02-01]: Decoupled shared/db.py from collector.metrics using structlog directly
+- [02-01]: Stub route files for Plans 02/03 rather than conditional imports
 
 ### Pending Todos
 
@@ -52,10 +55,10 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None yet.
+- supabase-py requires websockets<16 but project uses websockets>=16.0 (Kalshi WS collector). Must resolve for Plan 02-03 auth proxy endpoints.
 
 ## Session Continuity
 
-Last session: 2026-02-13
-Stopped at: Roadmap created, ready to plan Phase 1
-Resume file: None
+Last session: 2026-02-14
+Stopped at: Completed 02-01-PLAN.md (API Foundation)
+Resume file: .planning/phases/02-rest-api-authentication/02-01-SUMMARY.md

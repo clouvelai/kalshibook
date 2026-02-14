@@ -412,14 +412,198 @@ All errors return a consistent JSON envelope:
 | `no_data_available` | 404 | No data for the requested time range |
 | `key_not_found` | 404 | API key not found or already revoked |
 | `invalid_timestamp` | 400 | Timestamp is malformed or out of range |
+| `credits_exhausted` | 429 | Monthly credit limit reached, enable PAYG or upgrade |
+| `no_billing_account` | 400 | No Stripe customer exists, subscribe first via checkout |
+| `invalid_payload` | 400 | Webhook payload could not be parsed |
+| `invalid_signature` | 400 | Webhook Stripe signature verification failed |
 | `rate_limit_exceeded` | 429 | Too many requests, retry after indicated time |
 | `internal_error` | 500 | Unexpected server error |
 
 ---
 
+## Billing & Credits
+
+### Credit System Overview
+
+Every API request to data endpoints costs credits. Credits are deducted atomically on each request. The credit balance resets monthly on the billing cycle start date. Unused credits do not roll over.
+
+**Credit costs per endpoint:**
+
+| Endpoint | Cost |
+|----------|------|
+| `GET /markets` | 1 credit |
+| `GET /markets/{ticker}` | 1 credit |
+| `POST /deltas` | 2 credits |
+| `POST /orderbook` | 5 credits |
+
+Billing endpoints (`/billing/*`), auth endpoints (`/auth/*`), and key management endpoints (`/keys`) cost zero credits.
+
+### Tier Comparison
+
+| Feature | Free | Pay-As-You-Go | Project |
+|---------|------|---------------|---------|
+| Monthly credits | 1,000 | 1,000 + overage | 4,000 |
+| Price | $0/month | $0/month + $0.008/credit overage | $30/month |
+| Rate limit | 30 req/min | 60 req/min | 120 req/min |
+| Overage billing | No (429 when exhausted) | Yes (Stripe metered) | No (429 when exhausted) |
+| Stripe subscription | Not required | Not required | Required |
+
+All new accounts start on the **Free** tier with 1,000 credits/month.
+
+### Credit Response Headers
+
+Every data endpoint response includes credit headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-Credits-Remaining` | Credits remaining after this request |
+| `X-Credits-Used` | Total credits consumed this billing cycle |
+| `X-Credits-Total` | Total credit allocation for this billing cycle |
+| `X-Credits-Cost` | Credits charged for this specific request |
+
+Example response headers:
+```
+X-Credits-Remaining: 994
+X-Credits-Used: 6
+X-Credits-Total: 1000
+X-Credits-Cost: 5
+```
+
+### Credit Exhaustion
+
+When credits are exhausted (and PAYG is not enabled), requests return 429:
+
+```json
+{
+  "error": {
+    "code": "credits_exhausted",
+    "message": "Monthly credit limit reached. Enable PAYG or upgrade to Project for more credits.",
+    "status": 429
+  },
+  "request_id": "req_abc123"
+}
+```
+
+**Options when credits are exhausted:**
+1. Wait for monthly reset (billing cycle start date)
+2. Enable Pay-As-You-Go via `POST /billing/payg` (overage at $0.008/credit)
+3. Upgrade to Project plan via `POST /billing/checkout` (4,000 credits/month)
+
+### Billing Endpoints
+
+All billing endpoints require a **Supabase JWT access token** (from `POST /auth/login`), NOT an API key. Send the token as `Authorization: Bearer <access_token>`.
+
+#### GET /billing/status
+
+Check current billing tier, credit usage, and PAYG status.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200):**
+```json
+{
+  "tier": "free",
+  "credits_total": 1000,
+  "credits_used": 47,
+  "credits_remaining": 953,
+  "payg_enabled": false,
+  "billing_cycle_start": "2026-02-01T00:00:00",
+  "request_id": "req_abc123"
+}
+```
+
+- `tier`: One of `free`, `payg`, or `project`
+- `credits_remaining`: Computed as `credits_total - credits_used` (minimum 0)
+- `billing_cycle_start`: Start of the current monthly billing period
+
+#### POST /billing/checkout
+
+Create a Stripe Checkout Session to upgrade to the Project plan ($30/month, 4,000 credits).
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200):**
+```json
+{
+  "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_...",
+  "request_id": "req_abc123"
+}
+```
+
+- Redirect the user to `checkout_url` to complete payment
+- A Stripe customer is created automatically if one does not exist
+- After successful payment, a webhook updates the account to `project` tier with 4,000 credits
+
+#### POST /billing/portal
+
+Create a Stripe Customer Portal session for managing an existing subscription (cancel, update payment method, view invoices).
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200):**
+```json
+{
+  "portal_url": "https://billing.stripe.com/p/session/...",
+  "request_id": "req_abc123"
+}
+```
+
+**Errors:**
+- `400 no_billing_account` -- User has no Stripe customer. Must subscribe first via `POST /billing/checkout`.
+
+#### POST /billing/payg
+
+Enable or disable Pay-As-You-Go overage billing.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Request:**
+```json
+{
+  "enable": true
+}
+```
+
+**Response (200):**
+```json
+{
+  "payg_enabled": true,
+  "message": "Pay-As-You-Go enabled. Overage credits will be billed at $0.008/credit.",
+  "request_id": "req_abc123"
+}
+```
+
+- When enabling PAYG, a Stripe customer is created automatically if one does not exist
+- PAYG allows exceeding the credit allocation; overage is billed via Stripe metered billing
+- Disabling PAYG returns: `"Pay-As-You-Go disabled. API access will stop when credits are exhausted."`
+
+### Upgrade Flow for AI Agents
+
+When an AI agent encounters credit limits, follow this flow:
+
+1. **Check status:** `GET /billing/status` to see current tier and credits remaining
+2. **If credits low or exhausted:**
+   - Option A: Call `POST /billing/checkout` and present the `checkout_url` to the human user to complete payment in their browser
+   - Option B: Call `POST /billing/payg` with `{"enable": true}` to enable overage billing (no human interaction needed if Stripe customer exists)
+3. **After human completes Stripe Checkout:** Credits increase automatically via webhook (tier becomes `project`, credits_total becomes 4,000)
+4. **Retry the original request** -- credits are now available
+
+**Important:** AI agents cannot complete Stripe Checkout themselves. The `checkout_url` must be opened by a human user in a browser. PAYG toggle is fully API-driven and does not require human interaction (after initial Stripe customer creation).
+
+### Billing Error Codes
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `credits_exhausted` | 429 | Monthly credit limit reached, enable PAYG or upgrade |
+| `no_billing_account` | 400 | No Stripe customer exists, subscribe first via checkout |
+| `invalid_payload` | 400 | Webhook payload could not be parsed |
+| `invalid_signature` | 400 | Webhook Stripe signature verification failed |
+
+---
+
 ## Rate Limiting
 
-All endpoints are rate-limited. Current default: 100 requests per minute per API key.
+Rate limits are tier-dependent. Free: 30 req/min. PAYG: 60 req/min. Project: 120 req/min. A global backstop of 120 req/min applies to all users.
 
 Rate limit status is returned in response headers:
 

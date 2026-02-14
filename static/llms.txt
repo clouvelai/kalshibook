@@ -28,5 +28,21 @@ To get an API key:
 - [GET /keys](/docs#/API%20Keys): List your API keys
 - [DELETE /keys/{id}](/docs#/API%20Keys): Revoke an API key
 
+## Billing
+
+Credit-based API pricing. Each request costs credits (markets=1, deltas=2, orderbook=5).
+Free tier: 1,000 credits/month (no card required).
+Pay-As-You-Go: $0.008/credit overage billing.
+Project: $30/month for 4,000 credits + higher rate limits.
+
+Credit info returned in response headers: X-Credits-Remaining, X-Credits-Used, X-Credits-Total, X-Credits-Cost.
+429 when credits exhausted.
+
+Billing endpoints require Supabase JWT (from POST /auth/login), not API key.
+- GET /billing/status - Current tier, credits, PAYG status
+- POST /billing/checkout - Get Stripe Checkout URL for Project plan
+- POST /billing/portal - Get Stripe Customer Portal URL
+- POST /billing/payg - Enable/disable pay-as-you-go billing
+
 ## Optional
 - [GET /health](/docs#/Health/health_check_health_get): Health check endpoint

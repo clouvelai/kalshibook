@@ -5,34 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 3 - Billing + Monetization
+**Current focus:** Phase 3 complete -- ready for Phase 4
 
 ## Current Position
 
-Phase: 3 of 5 (Billing + Monetization)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-02-14 -- Completed 03-01 (credit metering infrastructure)
+Phase: 3 of 5 (Billing + Monetization) -- COMPLETE
+Plan: 2 of 2 in current phase (all plans complete)
+Status: Phase Complete
+Last activity: 2026-02-14 -- Completed 03-02 (Stripe billing routes, webhooks, AI discovery docs)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 4min
-- Total execution time: 0.25 hours
+- Total plans completed: 5
+- Average duration: 3min
+- Total execution time: 0.28 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 02 | 3 | 12min | 4min |
-| 03 | 1 | 3min | 3min |
+| 03 | 2 | 5min | 2.5min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 2min, 5min, 3min
-- Trend: stable
+- Last 5 plans: 2min, 5min, 3min, 2min
+- Trend: stable/improving
 
 *Updated after each plan completion*
 
@@ -58,6 +58,9 @@ Recent decisions affecting current work:
 - [03-01]: Rate limiter set to 120/minute backstop; credit system is real enforcement (avoids SlowAPI tier-awareness complexity)
 - [03-01]: Billing accounts created lazily on first API request via upsert (not at signup)
 - [03-01]: PAYG overage and usage logging use asyncio.create_task fire-and-forget to avoid blocking request path
+- [03-02]: Billing endpoints use Supabase JWT auth (not API keys) since they manage account-level state
+- [03-02]: Webhook handlers are idempotent; payment failures logged only (Stripe retries before sending subscription.deleted)
+- [03-02]: PAYG toggle auto-creates Stripe customer to reduce friction
 
 ### Pending Todos
 
@@ -70,5 +73,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 03-01-PLAN.md (credit metering infrastructure)
+Stopped at: Completed 03-02-PLAN.md (Stripe billing routes + AI discovery docs) -- Phase 3 complete
 Resume file: None

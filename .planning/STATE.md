@@ -10,27 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-13)
 ## Current Position
 
 Phase: 3 of 5 (Billing + Monetization)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-14 -- Phase 2 complete (verified), advancing to Phase 3
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-02-14 -- Completed 03-01 (credit metering infrastructure)
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 4min
-- Total execution time: 0.2 hours
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 02 | 3 | 12min | 4min |
+| 03 | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 2min, 5min
+- Last 5 plans: 5min, 2min, 5min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -54,6 +55,9 @@ Recent decisions affecting current work:
 - [02-03]: Used httpx directly against Supabase GoTrue REST API instead of supabase-py (websockets conflict resolved permanently)
 - [02-03]: Separated JWT auth (key management) from API key auth (data endpoints) via distinct dependencies
 - [02-03]: llms-full.txt at 515 lines covers full auth flow, all endpoints, error codes, backtesting workflow
+- [03-01]: Rate limiter set to 120/minute backstop; credit system is real enforcement (avoids SlowAPI tier-awareness complexity)
+- [03-01]: Billing accounts created lazily on first API request via upsert (not at signup)
+- [03-01]: PAYG overage and usage logging use asyncio.create_task fire-and-forget to avoid blocking request path
 
 ### Pending Todos
 
@@ -66,5 +70,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Phase 2 complete and verified, ready to plan Phase 3
+Stopped at: Completed 03-01-PLAN.md (credit metering infrastructure)
 Resume file: None

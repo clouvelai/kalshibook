@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     kalshi_ws_url: str = "wss://api.elections.kalshi.com/trade-api/ws/v2"
     kalshi_ws_path: str = "/trade-api/ws/v2"
 
+    # Kalshi REST API
+    kalshi_rest_base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
+
     # Collector settings
     batch_size: int = 500
     flush_interval_seconds: float = 2.0
@@ -41,6 +44,7 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_project_price_id: str = ""
     stripe_meter_event_name: str = "kalshibook_api_credits"
+    stripe_meter_event_id: str = ""
 
     # Frontend
     app_url: str = "http://localhost:3000"

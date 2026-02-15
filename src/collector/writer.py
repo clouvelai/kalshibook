@@ -89,6 +89,75 @@ class DatabaseWriter:
         async with self._lock:
             self._market_updates.append(market)
 
+    async def add_event_update(self, data: dict) -> None:
+        """Directly upsert event metadata (low volume, no buffering needed)."""
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO events
+                        (event_ticker, series_ticker, title, sub_title, category,
+                         mutually_exclusive, status, strike_date, strike_period, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT (event_ticker) DO UPDATE SET
+                        series_ticker = COALESCE(EXCLUDED.series_ticker, events.series_ticker),
+                        title = COALESCE(EXCLUDED.title, events.title),
+                        sub_title = COALESCE(EXCLUDED.sub_title, events.sub_title),
+                        category = COALESCE(EXCLUDED.category, events.category),
+                        mutually_exclusive = COALESCE(EXCLUDED.mutually_exclusive, events.mutually_exclusive),
+                        status = COALESCE(EXCLUDED.status, events.status),
+                        strike_date = COALESCE(EXCLUDED.strike_date, events.strike_date),
+                        strike_period = COALESCE(EXCLUDED.strike_period, events.strike_period),
+                        metadata = COALESCE(EXCLUDED.metadata, events.metadata),
+                        last_updated = now()
+                    """,
+                    data.get("event_ticker", ""),
+                    data.get("series_ticker"),
+                    data.get("title"),
+                    data.get("sub_title"),
+                    data.get("category"),
+                    data.get("mutually_exclusive"),
+                    data.get("status"),
+                    data.get("strike_date"),
+                    data.get("strike_period"),
+                    orjson.dumps(data).decode() if data else None,
+                )
+            logger.debug("event_upserted", event_ticker=data.get("event_ticker"))
+        except Exception:
+            logger.exception("event_upsert_failed", event_ticker=data.get("event_ticker"))
+
+    async def add_series_update(self, data: dict) -> None:
+        """Directly upsert series metadata (low volume, no buffering needed)."""
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO series
+                        (ticker, title, frequency, category, tags, settlement_sources, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (ticker) DO UPDATE SET
+                        title = COALESCE(EXCLUDED.title, series.title),
+                        frequency = COALESCE(EXCLUDED.frequency, series.frequency),
+                        category = COALESCE(EXCLUDED.category, series.category),
+                        tags = COALESCE(EXCLUDED.tags, series.tags),
+                        settlement_sources = COALESCE(EXCLUDED.settlement_sources, series.settlement_sources),
+                        metadata = COALESCE(EXCLUDED.metadata, series.metadata),
+                        last_updated = now()
+                    """,
+                    data.get("ticker", ""),
+                    data.get("title"),
+                    data.get("frequency"),
+                    data.get("category"),
+                    data.get("tags"),
+                    orjson.dumps(data.get("settlement_sources")).decode()
+                    if data.get("settlement_sources")
+                    else None,
+                    orjson.dumps(data).decode() if data else None,
+                )
+            logger.debug("series_upserted", ticker=data.get("ticker"))
+        except Exception:
+            logger.exception("series_upsert_failed", ticker=data.get("ticker"))
+
     async def start_flush_loop(self) -> None:
         """Run the periodic flush loop. Call as a background task."""
         self._running = True
@@ -341,20 +410,22 @@ class DatabaseWriter:
         try:
             async with self._pool.acquire() as conn:
                 for m in batch:
+                    metadata = m.get("metadata", {})
+                    series_ticker = metadata.get("series_ticker") if metadata else None
                     await conn.execute(
                         """
-                        INSERT INTO markets (ticker, status, metadata)
-                        VALUES ($1, $2, $3)
+                        INSERT INTO markets (ticker, status, series_ticker, metadata)
+                        VALUES ($1, $2, $3, $4)
                         ON CONFLICT (ticker) DO UPDATE SET
                             status = EXCLUDED.status,
+                            series_ticker = COALESCE(EXCLUDED.series_ticker, markets.series_ticker),
                             metadata = COALESCE(EXCLUDED.metadata, markets.metadata),
                             last_updated = now()
                         """,
                         m.get("ticker", ""),
                         m.get("event_type", "active"),
-                        orjson.dumps(m.get("metadata", {})).decode()
-                        if m.get("metadata")
-                        else None,
+                        series_ticker,
+                        orjson.dumps(metadata).decode() if metadata else None,
                     )
             logger.debug("markets_flushed", count=len(batch))
         except Exception:

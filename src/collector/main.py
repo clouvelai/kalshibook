@@ -5,15 +5,17 @@ from __future__ import annotations
 import asyncio
 import signal
 
-from src.collector.connection import KalshiWSConnection
+from src.collector.connection import KalshiWSConnection, load_private_key
 from src.collector.discovery import MarketDiscovery
+from src.collector.enrichment import KalshiRestClient
 from src.collector.metrics import (
     configure_logging,
     get_logger,
     get_metrics,
     log_metrics_periodically,
 )
-from src.collector.processor import OrderbookProcessor
+from src.collector.models import SettlementData, TradeExecution
+from src.collector.processor import OrderbookProcessor, _parse_ts
 from src.collector.writer import DatabaseWriter
 from src.shared.config import Settings, get_settings
 from src.shared.db import close_pool, create_pool, ensure_partitions
@@ -38,7 +40,10 @@ class CollectorService:
         self._processor: OrderbookProcessor | None = None
         self._discovery: MarketDiscovery | None = None
         self._connection: KalshiWSConnection | None = None
+        self._enrichment: KalshiRestClient | None = None
         self._tasks: list[asyncio.Task] = []
+        # GC protection for fire-and-forget background tasks
+        self._fire_and_forget: set[asyncio.Task] = set()
 
     async def start(self) -> None:
         """Initialize all components and run the collector."""
@@ -80,6 +85,20 @@ class CollectorService:
         )
         self._discovery.on_market_update = self._writer.add_market_update
         self._discovery.on_overflow_record = self._writer.add_overflow
+        self._discovery.on_enrichment_needed = self._handle_enrichment_needed
+
+        # Enrichment (REST API client for market/event/series data)
+        try:
+            private_key = load_private_key(self._settings)
+            self._enrichment = KalshiRestClient(
+                api_key_id=self._settings.kalshi_api_key_id,
+                private_key=private_key,
+                base_url=self._settings.kalshi_rest_base_url,
+            )
+            logger.info("enrichment_client_initialized")
+        except Exception:
+            logger.warning("enrichment_client_init_failed", exc_info=True)
+            self._enrichment = None
 
         # Connection
         self._connection = KalshiWSConnection(
@@ -125,6 +144,8 @@ class CollectorService:
 
     async def _cleanup(self) -> None:
         """Clean up resources."""
+        if self._enrichment:
+            await self._enrichment.close()
         if self._writer:
             await self._writer.stop()
         await close_pool()
@@ -139,6 +160,9 @@ class CollectorService:
 
         elif msg_type == "orderbook_delta":
             await self._processor.handle_delta(msg)
+
+        elif msg_type == "trade":
+            await self._handle_trade(msg)
 
         elif msg_type in ("market_lifecycle_v2", "market_lifecycle"):
             await self._discovery.handle_lifecycle_event(msg)
@@ -174,6 +198,9 @@ class CollectorService:
         # Subscribe to lifecycle channel (receives ALL events, no ticker filter)
         await self._connection.send_subscribe(["market_lifecycle_v2"])
 
+        # Subscribe to trade channel (ALL public trades, no market_tickers filter)
+        await self._connection.send_subscribe(["trade"])
+
         # Resubscribe to orderbook channels in batches
         tickers = self._discovery.get_resubscribe_list()
         if tickers:
@@ -203,6 +230,95 @@ class CollectorService:
         """Unsubscribe from orderbook updates for given tickers."""
         if self._connection and self._connection.is_connected:
             await self._connection.send_unsubscribe(["orderbook_delta"], tickers)
+
+    async def _handle_trade(self, msg: dict) -> None:
+        """Parse and buffer a trade execution message."""
+        data = msg.get("msg", {})
+        try:
+            trade = TradeExecution(
+                trade_id=str(data.get("trade_id", "")),
+                market_ticker=data.get("market_ticker", ""),
+                yes_price=data.get("yes_price", 0),
+                no_price=data.get("no_price", 0),
+                count=data.get("count", 0),
+                taker_side=data.get("taker_side", ""),
+                ts=_parse_ts(data.get("ts")),
+            )
+            await self._writer.add_trade(trade)
+        except Exception:
+            logger.exception("trade_parse_failed", msg=data)
+
+    async def _handle_enrichment_needed(self, data: dict) -> None:
+        """Fire-and-forget enrichment task (does not block WS message loop)."""
+        if not self._enrichment:
+            return
+        task = asyncio.create_task(self._enrich_market(data))
+        self._fire_and_forget.add(task)
+        task.add_done_callback(self._fire_and_forget.discard)
+
+    async def _enrich_market(self, data: dict) -> None:
+        """Fetch settlement, event, and series data from Kalshi REST API."""
+        ticker = data.get("market_ticker", "")
+        event_ticker = data.get("event_ticker", "")
+        event_type = data.get("event_type", "")
+
+        try:
+            # Settlement enrichment for terminal events
+            if event_type in ("determined", "settled"):
+                market_data = await self._enrichment.get_market(ticker)
+                if market_data:
+                    result = market_data.get("result")
+                    # Retry once if result is None (Kalshi API propagation delay)
+                    if result is None:
+                        logger.debug("settlement_result_pending", ticker=ticker)
+                        await asyncio.sleep(5)
+                        market_data = await self._enrichment.get_market(ticker)
+                        result = market_data.get("result") if market_data else None
+
+                    if market_data:
+                        settlement = SettlementData(
+                            market_ticker=ticker,
+                            event_ticker=event_ticker or market_data.get("event_ticker", ""),
+                            result=result,
+                            settlement_value=market_data.get("settlement_value"),
+                            determined_at=_parse_ts(market_data.get("determined_at"))
+                            if market_data.get("determined_at")
+                            else None,
+                            settled_at=_parse_ts(market_data.get("settled_at"))
+                            if market_data.get("settled_at")
+                            else None,
+                            source="rest_api",
+                            metadata=market_data,
+                        )
+                        await self._writer.add_settlement(settlement)
+                        logger.info("settlement_enriched", ticker=ticker, result=result)
+
+                    # Update event_ticker from enriched market data if missing
+                    if not event_ticker and market_data:
+                        event_ticker = market_data.get("event_ticker", "")
+
+            # Event enrichment
+            if event_ticker:
+                event_data = await self._enrichment.get_event(event_ticker)
+                if event_data:
+                    await self._writer.add_event_update(event_data)
+                    logger.debug("event_enriched", event_ticker=event_ticker)
+
+                    # Series enrichment (if event has a series)
+                    series_ticker = event_data.get("series_ticker")
+                    if series_ticker:
+                        series_data = await self._enrichment.get_series(series_ticker)
+                        if series_data:
+                            await self._writer.add_series_update(series_data)
+                            logger.debug("series_enriched", series_ticker=series_ticker)
+
+        except Exception:
+            logger.exception(
+                "enrichment_failed",
+                ticker=ticker,
+                event_ticker=event_ticker,
+                event_type=event_type,
+            )
 
     async def _load_existing_markets(self) -> None:
         """Load known active markets from database on startup."""

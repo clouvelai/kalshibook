@@ -38,6 +38,7 @@ class MarketDiscovery:
         # Callbacks set by orchestrator
         self.on_market_update: Callable[[dict], Awaitable[None]] | None = None
         self.on_overflow_record: Callable[[OverflowRecord], Awaitable[None]] | None = None
+        self.on_enrichment_needed: Callable[[dict], Awaitable[None]] | None = None
 
     @property
     def active_count(self) -> int:
@@ -95,8 +96,14 @@ class MarketDiscovery:
         # Route by event type
         if event_type in ACTIVE_EVENT_TYPES:
             await self._try_subscribe(ticker)
+            # Trigger enrichment for new market discovery (event/series metadata)
+            if self.on_enrichment_needed:
+                await self.on_enrichment_needed(data)
         elif event_type in TERMINAL_EVENT_TYPES:
             await self._handle_terminal(ticker)
+            # Trigger enrichment for settlement data + event/series metadata
+            if self.on_enrichment_needed:
+                await self.on_enrichment_needed(data)
         else:
             logger.debug("lifecycle_unhandled_event_type", event_type=event_type)
 

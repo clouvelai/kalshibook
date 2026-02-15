@@ -73,10 +73,14 @@ Recent decisions affecting current work:
 - [04-01]: Events/series tables are independent (no FKs) -- hierarchy is conceptual via ticker references
 - [04-03]: Trades endpoint uses exclusive end time (ts < end) for clean time-range semantics
 - [04-03]: Settlements list uses dynamic query building for optional filters (event_ticker, result)
+- [04-02]: Enrichment calls are async fire-and-forget to avoid blocking WS message loop
+- [04-02]: Settlement enrichment retries once after 5s on empty result (Kalshi API propagation delay)
+- [04-02]: Trade channel subscribed without market_tickers filter (receives ALL public trades)
+- [04-02]: Event/series are low-volume direct upserts (no buffering needed unlike trades/deltas)
 
 ### Pending Todos
 
-1. **Hydrate market metadata via REST API on discovery** (collector) — When joining a market mid-stream, fetch open_time/metadata from Kalshi REST API so we know how late we are. Fits Phase 2.
+1. ~~**Hydrate market metadata via REST API on discovery** (collector)~~ — Partially addressed by 04-02 enrichment client (event/series metadata on discovery). Full market metadata hydration (open_time etc.) can use same KalshiRestClient.
 
 ### Blockers/Concerns
 
@@ -85,5 +89,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 04-03-PLAN.md (trade & settlement endpoints)
-Resume file: .planning/phases/04-backtesting-ready-api/04-03-SUMMARY.md
+Stopped at: Completed 04-02-PLAN.md (collector extension with trade capture and REST enrichment)
+Resume file: .planning/phases/04-backtesting-ready-api/04-02-SUMMARY.md

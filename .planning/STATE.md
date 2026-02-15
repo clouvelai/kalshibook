@@ -84,6 +84,7 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 1. ~~**Hydrate market metadata via REST API on discovery** (collector)~~ — Partially addressed by 04-02 enrichment client (event/series metadata on discovery). Full market metadata hydration (open_time etc.) can use same KalshiRestClient.
+2. **Subscribe to ticker WS channel for open interest data** (collector) — The Kalshi `ticker` channel provides open interest that we can't derive from trades/orderbook. Would enrich candle data. Low priority — trade-price candles + volume serve primary use case.
 
 ### Blockers/Concerns
 

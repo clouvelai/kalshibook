@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-13)
 ## Current Position
 
 Phase: 4 of 5 (Backtesting-Ready API) -- EXECUTING
-Plan: 1 of 4 in current phase
-Status: Plan 04-01 complete
-Last activity: 2026-02-15 -- Completed 04-01 schema & models (trades, settlements, events/series tables + Pydantic models)
+Plan: 3 of 4 in current phase
+Status: Plan 04-03 complete
+Last activity: 2026-02-15 -- Completed 04-03 trade & settlement endpoints (POST /trades, GET /settlements, GET /settlements/{ticker})
 
-Progress: [██████░░░░] 65%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 8
 - Average duration: 3min
-- Total execution time: 0.31 hours
+- Total execution time: 0.37 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [██████░░░░] 65%
 |-------|-------|-------|----------|
 | 02 | 3 | 12min | 4min |
 | 03 | 2 | 5min | 2.5min |
-| 04 | 1 | 2min | 2min |
+| 04 | 3 | 6min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 3min, 2min, 2min
+- Last 5 plans: 3min, 2min, 2min, 2min, 2min
 - Trend: stable/improving
 
 *Updated after each plan completion*
@@ -71,6 +71,8 @@ Recent decisions affecting current work:
 - [04-01]: Trades table mirrors deltas partitioning strategy (daily PARTITION BY RANGE on ts)
 - [04-01]: Settlements denormalized (no FK to markets) for write performance and direct query access
 - [04-01]: Events/series tables are independent (no FKs) -- hierarchy is conceptual via ticker references
+- [04-03]: Trades endpoint uses exclusive end time (ts < end) for clean time-range semantics
+- [04-03]: Settlements list uses dynamic query building for optional filters (event_ticker, result)
 
 ### Pending Todos
 
@@ -83,5 +85,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 04-01-PLAN.md (schema & models)
-Resume file: .planning/phases/04-backtesting-ready-api/04-01-SUMMARY.md
+Stopped at: Completed 04-03-PLAN.md (trade & settlement endpoints)
+Resume file: .planning/phases/04-backtesting-ready-api/04-03-SUMMARY.md

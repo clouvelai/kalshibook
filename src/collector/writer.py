@@ -14,6 +14,8 @@ from src.collector.models import (
     OrderbookDelta,
     OrderbookSnapshot,
     OverflowRecord,
+    SettlementData,
+    TradeExecution,
 )
 
 logger = get_logger("writer")
@@ -36,6 +38,8 @@ class DatabaseWriter:
         # Buffers
         self._snapshot_buffer: list[OrderbookSnapshot] = []
         self._delta_buffer: list[OrderbookDelta] = []
+        self._trade_buffer: list[TradeExecution] = []
+        self._settlement_buffer: list[SettlementData] = []
         self._gap_buffer: list[GapRecord] = []
         self._overflow_buffer: list[OverflowRecord] = []
         self._market_updates: list[dict] = []
@@ -56,6 +60,19 @@ class DatabaseWriter:
             self._delta_buffer.append(delta)
             if len(self._delta_buffer) >= self._max_batch_size:
                 await self._flush_deltas()
+
+    async def add_trade(self, trade: TradeExecution) -> None:
+        """Add a trade execution to the write buffer."""
+        async with self._lock:
+            self._trade_buffer.append(trade)
+            if len(self._trade_buffer) >= self._max_batch_size:
+                await self._flush_trades()
+
+    async def add_settlement(self, settlement: SettlementData) -> None:
+        """Add a settlement record (immediate flush -- low volume)."""
+        async with self._lock:
+            self._settlement_buffer.append(settlement)
+            await self._flush_settlements()
 
     async def add_gap(self, gap: GapRecord) -> None:
         """Add a gap record to the write buffer."""
@@ -87,6 +104,10 @@ class DatabaseWriter:
                 tasks.append(self._flush_snapshots())
             if self._delta_buffer:
                 tasks.append(self._flush_deltas())
+            if self._trade_buffer:
+                tasks.append(self._flush_trades())
+            if self._settlement_buffer:
+                tasks.append(self._flush_settlements())
             if self._gap_buffer:
                 tasks.append(self._flush_gaps())
             if self._overflow_buffer:
@@ -168,6 +189,101 @@ class DatabaseWriter:
         except Exception:
             self._delta_buffer = batch + self._delta_buffer
             logger.exception("delta_flush_failed", count=len(batch))
+
+    async def _flush_trades(self) -> None:
+        """Write buffered trades to database."""
+        if not self._trade_buffer:
+            return
+        batch = self._trade_buffer[:]
+        self._trade_buffer.clear()
+
+        try:
+            async with self._pool.acquire() as conn:
+                # Ensure partition exists for all dates in batch
+                dates_seen = {t.ts.date() for t in batch}
+                for dt in dates_seen:
+                    await self._ensure_trade_partition(conn, dt)
+
+                await conn.executemany(
+                    """
+                    INSERT INTO trades
+                        (trade_id, market_ticker, yes_price, no_price, count, taker_side, ts)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    [
+                        (
+                            t.trade_id,
+                            t.market_ticker,
+                            t.yes_price,
+                            t.no_price,
+                            t.count,
+                            t.taker_side,
+                            t.ts,
+                        )
+                        for t in batch
+                    ],
+                )
+            logger.debug("trades_flushed", count=len(batch))
+        except Exception:
+            self._trade_buffer = batch + self._trade_buffer
+            logger.exception("trade_flush_failed", count=len(batch))
+
+    async def _flush_settlements(self) -> None:
+        """Upsert buffered settlement records to database."""
+        if not self._settlement_buffer:
+            return
+        batch = self._settlement_buffer[:]
+        self._settlement_buffer.clear()
+
+        try:
+            async with self._pool.acquire() as conn:
+                for s in batch:
+                    await conn.execute(
+                        """
+                        INSERT INTO settlements
+                            (market_ticker, event_ticker, result, settlement_value,
+                             determined_at, settled_at, source, metadata)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        ON CONFLICT (market_ticker) DO UPDATE SET
+                            result = COALESCE(EXCLUDED.result, settlements.result),
+                            settlement_value = COALESCE(EXCLUDED.settlement_value, settlements.settlement_value),
+                            determined_at = COALESCE(EXCLUDED.determined_at, settlements.determined_at),
+                            settled_at = COALESCE(EXCLUDED.settled_at, settlements.settled_at),
+                            source = EXCLUDED.source,
+                            metadata = COALESCE(EXCLUDED.metadata, settlements.metadata),
+                            updated_at = now()
+                        """,
+                        s.market_ticker,
+                        s.event_ticker,
+                        s.result,
+                        s.settlement_value,
+                        s.determined_at,
+                        s.settled_at,
+                        s.source,
+                        orjson.dumps(s.metadata).decode() if s.metadata else None,
+                    )
+            logger.debug("settlements_flushed", count=len(batch))
+        except Exception:
+            self._settlement_buffer = batch + self._settlement_buffer
+            logger.exception("settlement_flush_failed", count=len(batch))
+
+    @staticmethod
+    async def _ensure_trade_partition(conn: asyncpg.Connection, dt) -> None:
+        """Create a trade partition for a specific date if it doesn't exist."""
+        partition_name = f"trades_{dt.strftime('%Y_%m_%d')}"
+        start = dt.strftime("%Y-%m-%d")
+        end = (dt + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        await conn.execute(f"""
+            DO $$
+            BEGIN
+                CREATE TABLE IF NOT EXISTS {partition_name}
+                    PARTITION OF trades
+                    FOR VALUES FROM ('{start}') TO ('{end}');
+            EXCEPTION WHEN duplicate_table THEN
+                NULL;
+            END $$;
+        """)
 
     async def _flush_gaps(self) -> None:
         """Write buffered gap records to database."""
@@ -275,6 +391,8 @@ class DatabaseWriter:
         return {
             "snapshots": len(self._snapshot_buffer),
             "deltas": len(self._delta_buffer),
+            "trades": len(self._trade_buffer),
+            "settlements": len(self._settlement_buffer),
             "gaps": len(self._gap_buffer),
             "overflow": len(self._overflow_buffer),
             "markets": len(self._market_updates),

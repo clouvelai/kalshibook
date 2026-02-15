@@ -9,6 +9,33 @@ from datetime import datetime
 
 
 @dataclass(frozen=True, slots=True)
+class TradeExecution:
+    """Parsed trade message from Kalshi WS."""
+
+    trade_id: str
+    market_ticker: str
+    yes_price: int  # cents
+    no_price: int  # cents
+    count: int  # contracts traded
+    taker_side: str  # "yes" or "no"
+    ts: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SettlementData:
+    """Settlement/resolution data for a market."""
+
+    market_ticker: str
+    event_ticker: str
+    result: str | None  # 'yes', 'no', 'all_no', 'all_yes', 'void'
+    settlement_value: int | None  # cents
+    determined_at: datetime | None
+    settled_at: datetime | None
+    source: str  # 'lifecycle', 'rest_api'
+    metadata: dict | None
+
+
+@dataclass(frozen=True, slots=True)
 class OrderbookSnapshot:
     """Parsed orderbook_snapshot message from Kalshi WS."""
 

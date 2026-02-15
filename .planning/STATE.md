@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 3 complete (reviewed + simplified) -- ready for Phase 4
+**Current focus:** Phase 4 context gathered -- backtesting-ready API (replaced real-time streaming)
 
 ## Current Position
 
-Phase: 3 of 5 (Billing + Monetization) -- COMPLETE
-Plan: 2 of 2 in current phase (all plans complete)
-Status: Phase Complete
-Last activity: 2026-02-14 -- Phase 3 complete, code reviewed + simplified, remaining issues fixed
+Phase: 4 of 5 (Backtesting-Ready API) -- CONTEXT GATHERED
+Plan: 0 of TBD in current phase
+Status: Ready for planning
+Last activity: 2026-02-15 -- Phase 4 context gathered, roadmap updated (Real-Time Streaming replaced with Backtesting-Ready API)
 
 Progress: [██████░░░░] 60%
 
@@ -78,6 +78,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-14
-Stopped at: Phase 3 complete (reviewed, simplified, committed) -- ready for Phase 4
-Resume file: None
+Last session: 2026-02-15
+Stopped at: Phase 4 context gathered -- ready for planning
+Resume file: .planning/phases/04-backtesting-ready-api/04-CONTEXT.md

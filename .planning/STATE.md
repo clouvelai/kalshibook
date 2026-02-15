@@ -85,6 +85,7 @@ Recent decisions affecting current work:
 
 1. ~~**Hydrate market metadata via REST API on discovery** (collector)~~ — Partially addressed by 04-02 enrichment client (event/series metadata on discovery). Full market metadata hydration (open_time etc.) can use same KalshiRestClient.
 2. **Subscribe to ticker WS channel for open interest data** (collector) — The Kalshi `ticker` channel provides open interest that we can't derive from trades/orderbook. Would enrich candle data. Low priority — trade-price candles + volume serve primary use case.
+3. **Fetch Kalshi event candlesticks for untracked markets** (api) — Kalshi's public GET /series/{series}/events/{event}/candlesticks returns rich OHLC+volume+OI data for ALL markets in an event, no auth needed. Would enable directional backtesting for events we don't track.
 
 ### Blockers/Concerns
 

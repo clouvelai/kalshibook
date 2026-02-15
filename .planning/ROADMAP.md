@@ -2,7 +2,7 @@
 
 ## Overview
 
-KalshiBook delivers a monetized L2 orderbook data API for Kalshi prediction markets. The roadmap moves from data collection (the foundation everything depends on), through API serving with authentication and developer experience, into monetization via Stripe billing, real-time streaming for live traders, and finally a user dashboard for self-service management. Each phase delivers a complete, verifiable capability that unlocks the next.
+KalshiBook delivers a monetized L2 orderbook data API for Kalshi prediction markets. The roadmap moves from data collection (the foundation everything depends on), through API serving with authentication and developer experience, into monetization via Stripe billing, completing the data layer for backtesting viability, and finally a user dashboard for self-service management. Each phase delivers a complete, verifiable capability that unlocks the next. A future milestone will build an agent-first backtesting framework on top of this data layer.
 
 ## Phases
 
@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Data Collection Pipeline** - Persistent websocket collector that captures and stores L2 orderbook data from Kalshi
 - [x] **Phase 2: REST API + Authentication** - Serve historical orderbook data via authenticated REST endpoints with developer documentation
 - [ ] **Phase 3: Billing + Monetization** - Credit-based pricing with Stripe subscriptions and usage metering
-- [ ] **Phase 4: Real-Time Streaming** - Live orderbook updates via websocket for subscribers
+- [ ] **Phase 4: Backtesting-Ready API** - Complete the data layer with trade capture, settlements, candles, and event hierarchy
 - [ ] **Phase 5: Dashboard** - Self-service web UI for API key management, usage tracking, and billing
 
 ## Phase Details
@@ -66,14 +66,15 @@ Plans:
 - [x] 03-01-PLAN.md -- Credit metering infrastructure (DB, billing service, require_credits dependency, headers middleware, endpoint integration)
 - [x] 03-02-PLAN.md -- Stripe integration (Checkout, Portal, webhooks, PAYG toggle, billing status, llms.txt update)
 
-### Phase 4: Real-Time Streaming
-**Goal**: Users can subscribe to live orderbook updates via websocket for real-time trading strategy execution
-**Depends on**: Phase 2
-**Requirements**: STRM-01, STRM-02
+### Phase 4: Backtesting-Ready API
+**Goal**: The data API layer is complete enough for customers to build their own backtesting frameworks -- public trade capture, normalized settlements, candlestick data, and event/market hierarchy are all available through authenticated endpoints
+**Depends on**: Phase 3
+**Requirements**: BKTS-01, BKTS-02, BKTS-03, BKTS-04
 **Success Criteria** (what must be TRUE):
-  1. User can open a websocket connection, authenticate with a valid API key, and subscribe to orderbook updates for specific markets
-  2. Subscribed users receive orderbook updates in real time as the collector ingests them from Kalshi
-  3. Unauthenticated or invalid websocket connections are rejected with a clear error on handshake
+  1. Collector captures public trade executions from the Kalshi `trades` WS channel and trade history is queryable via API with market + time range filtering
+  2. Settlement/resolution data is normalized into a queryable format -- users can look up how any market resolved and when
+  3. Candlestick/OHLC data is available at 1-minute, 1-hour, and 1-day intervals for any market with captured data
+  4. Event/market hierarchy is exposed -- users can query all markets within an event and navigate the Series > Event > Market structure where applicable
 **Plans**: TBD
 
 Plans:
@@ -96,12 +97,12 @@ Plans:
 
 **Execution Order:**
 Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
-(Note: Phases 4 and 5 have different dependencies -- Phase 4 depends on Phase 2, Phase 5 depends on Phase 3 -- but sequential execution is recommended for solo development)
+(Sequential execution recommended for solo development)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Collection Pipeline | 1/1 | Complete | 2026-02-13 |
 | 2. REST API + Authentication | 3/3 | Complete | 2026-02-14 |
 | 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
-| 4. Real-Time Streaming | 0/TBD | Not started | - |
+| 4. Backtesting-Ready API | 0/TBD | Not started | - |
 | 5. Dashboard | 0/TBD | Not started | - |

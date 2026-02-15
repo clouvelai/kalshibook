@@ -69,6 +69,14 @@ class MarketNotFoundError(KalshiBookError):
         super().__init__(code="market_not_found", message=msg, status=404)
 
 
+class SettlementNotFoundError(KalshiBookError):
+    """Raised when no settlement data exists for the requested market."""
+
+    def __init__(self, ticker: str = ""):
+        msg = f"No settlement data found for market '{ticker}'." if ticker else "Settlement not found."
+        super().__init__(code="settlement_not_found", message=msg, status=404)
+
+
 class NoDataAvailableError(KalshiBookError):
     """Raised when no data exists for the requested time range."""
 

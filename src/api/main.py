@@ -19,7 +19,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from src.api.errors import generate_request_id, register_exception_handlers
-from src.api.routes import auth, billing, deltas, keys, markets, orderbook, settlements, trades
+from src.api.routes import auth, billing, candles, deltas, events, keys, markets, orderbook, settlements, trades
 from src.api.services.supabase_auth import create_supabase_auth_client
 from src.shared.config import get_settings
 from src.shared.db import close_pool, create_pool
@@ -127,6 +127,14 @@ app = FastAPI(
             "description": "Look up market resolution/settlement outcomes.",
         },
         {
+            "name": "Candles",
+            "description": "OHLC candlestick data at 1-minute, 1-hour, and 1-day intervals.",
+        },
+        {
+            "name": "Events",
+            "description": "Navigate Series > Event > Market hierarchy.",
+        },
+        {
             "name": "Billing",
             "description": (
                 "Credit-based billing, Stripe subscription management, "
@@ -220,4 +228,6 @@ app.include_router(markets.router)
 app.include_router(keys.router)
 app.include_router(trades.router)
 app.include_router(settlements.router)
+app.include_router(candles.router)
+app.include_router(events.router)
 app.include_router(billing.router)

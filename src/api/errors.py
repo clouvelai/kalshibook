@@ -69,6 +69,14 @@ class MarketNotFoundError(KalshiBookError):
         super().__init__(code="market_not_found", message=msg, status=404)
 
 
+class EventNotFoundError(KalshiBookError):
+    """Raised when the requested event does not exist."""
+
+    def __init__(self, event_ticker: str = ""):
+        msg = f"Event '{event_ticker}' not found." if event_ticker else "Event not found."
+        super().__init__(code="event_not_found", message=msg, status=404)
+
+
 class SettlementNotFoundError(KalshiBookError):
     """Raised when no settlement data exists for the requested market."""
 

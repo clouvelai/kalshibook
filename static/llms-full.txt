@@ -24,7 +24,7 @@ https://api.kalshibook.com
 KalshiBook uses two authentication methods:
 
 1. **Supabase JWT tokens** -- for account management (signup, login, key management)
-2. **API keys** -- for all data endpoints (orderbook, deltas, markets)
+2. **API keys** -- for all data endpoints (orderbook, deltas, markets, trades, settlements, candles, events)
 
 API keys are prefixed with `kb-` and sent via the Authorization header:
 ```
@@ -222,6 +222,21 @@ Revoke an API key. The key must belong to the authenticated user.
 
 All data endpoints require an API key: `Authorization: Bearer kb-YOUR_KEY`
 
+### Endpoint Summary
+
+| Endpoint | Method | Credits | Description |
+|----------|--------|---------|-------------|
+| `/orderbook` | POST | 5 | Reconstruct L2 orderbook at any timestamp |
+| `/deltas` | POST | 2 | Raw orderbook delta events (paginated) |
+| `/markets` | GET | 1 | List markets with data coverage |
+| `/markets/{ticker}` | GET | 1 | Market metadata and stats |
+| `/trades` | POST | 2 | Trade execution history (paginated) |
+| `/settlements` | GET | 1 | List settlement results |
+| `/settlements/{ticker}` | GET | 1 | Single market settlement |
+| `/candles/{ticker}` | GET | 3 | OHLCV candlestick data |
+| `/events` | GET | 1 | List events with market counts |
+| `/events/{event_ticker}` | GET | 1 | Event detail with nested markets |
+
 ### POST /orderbook
 
 Reconstruct the L2 orderbook state at any historical timestamp. KalshiBook stores periodic snapshots and incremental deltas, then replays deltas on top of the nearest snapshot to reconstruct the exact orderbook state at the requested time.
@@ -381,6 +396,244 @@ Get detailed metadata for a specific market.
 - `snapshot_count` and `delta_count` indicate how much data is available
 - More snapshots = faster orderbook reconstruction (less delta replay needed)
 
+### POST /trades
+
+Query trade execution history for a market within a time range. Results are paginated using cursor-based pagination.
+
+**Request:**
+```json
+{
+  "market_ticker": "KXBTCD-25FEB14-B97000",
+  "start_time": "2026-02-14T10:00:00Z",
+  "end_time": "2026-02-14T12:00:00Z",
+  "cursor": null,
+  "limit": 100
+}
+```
+
+- `market_ticker` (required): Kalshi market ticker
+- `start_time` (required): Start of time range (inclusive)
+- `end_time` (required): End of time range (exclusive)
+- `cursor` (optional): Pagination cursor from previous response
+- `limit` (optional): Results per page, 1-1000 (default: 100)
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "trade_id": "abc123-def456",
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "yes_price": 65,
+      "no_price": 35,
+      "count": 10,
+      "taker_side": "yes",
+      "ts": "2026-02-14T10:00:01.234Z"
+    }
+  ],
+  "next_cursor": "eyJ0cyI6IjIwMjYtMDItMTRUMTI6MDA...",
+  "has_more": true,
+  "request_id": "req_abc123",
+  "response_time": 0.028
+}
+```
+
+- `yes_price` and `no_price` are in cents and always sum to 100
+- `count` is the number of contracts traded
+- `taker_side` indicates which side initiated the trade ("yes" or "no")
+- Time range uses exclusive end: `ts >= start_time AND ts < end_time`
+
+### GET /settlements
+
+List settlement results for resolved markets.
+
+**Query Parameters:**
+- `event_ticker` (optional): Filter by parent event ticker
+- `result` (optional): Filter by settlement result (yes, no, void, all_yes, all_no)
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "event_ticker": "KXBTCD",
+      "result": "yes",
+      "settlement_value": 100,
+      "determined_at": "2026-02-14T20:00:00Z",
+      "settled_at": "2026-02-14T20:05:00Z"
+    }
+  ],
+  "request_id": "req_abc123",
+  "response_time": 0.012
+}
+```
+
+- `settlement_value` is in cents (100 for yes, 0 for no)
+- `determined_at` is when the outcome was determined
+- `settled_at` is when settlement was finalized and payouts processed
+- Results ordered by `determined_at` descending (most recent first)
+
+### GET /settlements/{ticker}
+
+Get settlement data for a specific market.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "market_ticker": "KXBTCD-25FEB14-B97000",
+    "event_ticker": "KXBTCD",
+    "result": "yes",
+    "settlement_value": 100,
+    "determined_at": "2026-02-14T20:00:00Z",
+    "settled_at": "2026-02-14T20:05:00Z"
+  },
+  "request_id": "req_abc123",
+  "response_time": 0.005
+}
+```
+
+**Errors:**
+- `404 settlement_not_found` -- no settlement data for this market
+
+### GET /candles/{ticker}
+
+Get OHLCV candlestick data for a market, computed from raw trade data using SQL aggregation.
+
+**Query Parameters:**
+- `start_time` (required): Start of time range, ISO 8601 (inclusive)
+- `end_time` (required): End of time range, ISO 8601 (exclusive)
+- `interval` (optional): Candle interval -- `1m` (1 minute), `1h` (1 hour, default), `1d` (1 day)
+
+**Example:**
+```bash
+curl "https://api.kalshibook.com/candles/KXBTCD-25FEB14-B97000?start_time=2026-02-14T10:00:00Z&end_time=2026-02-14T14:00:00Z&interval=1h" \
+  -H "Authorization: Bearer kb-YOUR_KEY"
+```
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "bucket": "2026-02-14T10:00:00",
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "open": 62,
+      "high": 68,
+      "low": 60,
+      "close": 65,
+      "volume": 450,
+      "trade_count": 37
+    },
+    {
+      "bucket": "2026-02-14T11:00:00",
+      "market_ticker": "KXBTCD-25FEB14-B97000",
+      "open": 65,
+      "high": 72,
+      "low": 63,
+      "close": 70,
+      "volume": 620,
+      "trade_count": 51
+    }
+  ],
+  "request_id": "req_abc123",
+  "response_time": 0.035
+}
+```
+
+- `open`, `high`, `low`, `close` are yes-side prices in cents (derived from `yes_price` in trades)
+- `volume` is total contracts traded in the bucket (`SUM(count)`)
+- `trade_count` is the number of individual trade records in the bucket
+- **Empty buckets produce no rows.** If there are no trades in a time interval, that bucket is omitted from the response. Consumers typically forward-fill the previous close price for missing intervals.
+- Candles are computed from the `trades` table via SQL `date_trunc` aggregation, not proxied from Kalshi
+
+**Errors:**
+- `422 validation_error` -- invalid interval (must be 1m, 1h, or 1d)
+
+### GET /events
+
+List events with market counts. Events group related markets (e.g., all BTC price strike levels for a given date).
+
+**Query Parameters:**
+- `category` (optional): Filter by event category
+- `series_ticker` (optional): Filter by parent series ticker
+- `status` (optional): Filter by event status
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "event_ticker": "KXBTCD-25FEB14",
+      "series_ticker": "KXBTCD",
+      "title": "Will BTC be above X on Feb 14?",
+      "sub_title": "February 14, 2026",
+      "category": "Crypto",
+      "mutually_exclusive": false,
+      "status": "active",
+      "market_count": 12
+    }
+  ],
+  "request_id": "req_abc123",
+  "response_time": 0.018
+}
+```
+
+- `market_count` shows how many markets belong to this event
+- `mutually_exclusive` indicates if only one market in the event can settle Yes
+
+### GET /events/{event_ticker}
+
+Get event detail with all child markets. Enables multi-market analysis (e.g., viewing all strike prices for an event to build a probability distribution).
+
+**Response (200):**
+```json
+{
+  "data": {
+    "event_ticker": "KXBTCD-25FEB14",
+    "series_ticker": "KXBTCD",
+    "title": "Will BTC be above X on Feb 14?",
+    "sub_title": "February 14, 2026",
+    "category": "Crypto",
+    "mutually_exclusive": false,
+    "status": "active",
+    "market_count": 3,
+    "markets": [
+      {
+        "ticker": "KXBTCD-25FEB14-B95000",
+        "title": "BTC above $95,000 on Feb 14?",
+        "event_ticker": "KXBTCD-25FEB14",
+        "status": "active",
+        "category": "Crypto"
+      },
+      {
+        "ticker": "KXBTCD-25FEB14-B97000",
+        "title": "BTC above $97,000 on Feb 14?",
+        "event_ticker": "KXBTCD-25FEB14",
+        "status": "active",
+        "category": "Crypto"
+      },
+      {
+        "ticker": "KXBTCD-25FEB14-B99000",
+        "title": "BTC above $99,000 on Feb 14?",
+        "event_ticker": "KXBTCD-25FEB14",
+        "status": "active",
+        "category": "Crypto"
+      }
+    ]
+  },
+  "request_id": "req_abc123",
+  "response_time": 0.022
+}
+```
+
+- `markets` contains all markets for the event, ordered by ticker
+- Each market includes basic summary fields (use `GET /markets/{ticker}` for full detail)
+
+**Errors:**
+- `404 event_not_found` -- event ticker doesn't exist in the database
+
 ---
 
 ## Error Handling
@@ -409,6 +662,8 @@ All errors return a consistent JSON envelope:
 | `weak_password` | 422 | Password doesn't meet strength requirements |
 | `validation_error` | 422 | Request body failed validation |
 | `market_not_found` | 404 | Market ticker doesn't exist |
+| `event_not_found` | 404 | Event ticker doesn't exist |
+| `settlement_not_found` | 404 | No settlement data for this market |
 | `no_data_available` | 404 | No data for the requested time range |
 | `key_not_found` | 404 | API key not found or already revoked |
 | `invalid_timestamp` | 400 | Timestamp is malformed or out of range |
@@ -433,7 +688,13 @@ Every API request to data endpoints costs credits. Credits are deducted atomical
 |----------|------|
 | `GET /markets` | 1 credit |
 | `GET /markets/{ticker}` | 1 credit |
+| `GET /events` | 1 credit |
+| `GET /events/{event_ticker}` | 1 credit |
+| `GET /settlements` | 1 credit |
+| `GET /settlements/{ticker}` | 1 credit |
+| `POST /trades` | 2 credits |
 | `POST /deltas` | 2 credits |
+| `GET /candles/{ticker}` | 3 credits |
 | `POST /orderbook` | 5 credits |
 
 Billing endpoints (`/billing/*`), auth endpoints (`/auth/*`), and key management endpoints (`/keys`) cost zero credits.
@@ -621,14 +882,19 @@ Unauthenticated endpoints (/auth/signup, /auth/login) are rate-limited by IP add
 
 ## Backtesting Workflow
 
-A typical backtesting workflow using KalshiBook:
+A complete backtesting workflow using KalshiBook:
 
-1. **Discover markets:** `GET /markets` to find markets with data
-2. **Check coverage:** Look at `first_data_at` and `last_data_at` for your target market
-3. **Sample orderbook state:** `POST /orderbook` at each timestamp in your backtest
-4. **Get raw deltas:** `POST /deltas` if you need tick-level data for fine-grained analysis
+1. **Discover events:** `GET /events` to find event groups with multiple strike levels
+2. **Explore event markets:** `GET /events/{event_ticker}` to see all markets for an event
+3. **Discover markets:** `GET /markets` to find markets with data
+4. **Check coverage:** Look at `first_data_at` and `last_data_at` for your target market
+5. **Get candles for strategy signals:** `GET /candles/{ticker}?interval=1h` for directional/momentum analysis
+6. **Get trade history:** `POST /trades` for tick-level execution data
+7. **Sample orderbook state:** `POST /orderbook` at each timestamp in your backtest for spread/depth analysis
+8. **Get raw deltas:** `POST /deltas` for tick-level orderbook changes
+9. **Check outcomes:** `GET /settlements/{ticker}` to verify strategy P&L against actual results
 
-### Example: Backtest a market-making strategy
+### Example: Backtest a momentum strategy using candles
 
 ```python
 import httpx
@@ -636,31 +902,63 @@ import httpx
 BASE = "https://api.kalshibook.com"
 HEADERS = {"Authorization": "Bearer kb-YOUR_KEY"}
 
-# 1. Find a market
-markets = httpx.get(f"{BASE}/markets", headers=HEADERS).json()
-ticker = markets["data"][0]["ticker"]
-
-# 2. Get orderbook at a specific time
-book = httpx.post(f"{BASE}/orderbook", headers=HEADERS, json={
-    "market_ticker": ticker,
-    "timestamp": "2026-02-14T12:00:00Z"
+# 1. Find events in a category
+events = httpx.get(f"{BASE}/events", headers=HEADERS, params={
+    "category": "Crypto"
 }).json()
 
-# 3. Analyze the orderbook
-for level in book["yes"]:
-    print(f"  Yes @ {level['price']}c: {level['quantity']} contracts")
-for level in book["no"]:
-    print(f"  No  @ {level['price']}c: {level['quantity']} contracts")
+# 2. Get markets for an event
+event_ticker = events["data"][0]["event_ticker"]
+event = httpx.get(f"{BASE}/events/{event_ticker}", headers=HEADERS).json()
+print(f"Event has {len(event['data']['markets'])} markets")
 
-# 4. Get raw deltas for tick analysis
-deltas = httpx.post(f"{BASE}/deltas", headers=HEADERS, json={
-    "market_ticker": ticker,
-    "start_time": "2026-02-14T11:00:00Z",
-    "end_time": "2026-02-14T12:00:00Z",
-    "limit": 1000
+# 3. Get hourly candles for a market
+ticker = event["data"]["markets"][0]["ticker"]
+candles = httpx.get(f"{BASE}/candles/{ticker}", headers=HEADERS, params={
+    "start_time": "2026-02-14T08:00:00Z",
+    "end_time": "2026-02-14T20:00:00Z",
+    "interval": "1h"
 }).json()
 
-print(f"Got {len(deltas['data'])} deltas, has_more={deltas['has_more']}")
+for c in candles["data"]:
+    print(f"  {c['bucket']}: O={c['open']} H={c['high']} L={c['low']} C={c['close']} V={c['volume']}")
+
+# 4. Check settlement outcome
+settlement = httpx.get(f"{BASE}/settlements/{ticker}", headers=HEADERS).json()
+print(f"Result: {settlement['data']['result']}")
+
+# 5. Get raw trades for fine-grained analysis
+trades = httpx.post(f"{BASE}/trades", headers=HEADERS, json={
+    "market_ticker": ticker,
+    "start_time": "2026-02-14T12:00:00Z",
+    "end_time": "2026-02-14T13:00:00Z",
+    "limit": 500
+}).json()
+print(f"Got {len(trades['data'])} trades")
+```
+
+### Example: Build a probability distribution from event markets
+
+```python
+import httpx
+
+BASE = "https://api.kalshibook.com"
+HEADERS = {"Authorization": "Bearer kb-YOUR_KEY"}
+
+# Get all markets for an event
+event = httpx.get(f"{BASE}/events/KXBTCD-25FEB14", headers=HEADERS).json()
+
+# Get the latest orderbook for each strike level
+for market in event["data"]["markets"]:
+    book = httpx.post(f"{BASE}/orderbook", headers=HEADERS, json={
+        "market_ticker": market["ticker"],
+        "timestamp": "2026-02-14T12:00:00Z"
+    }).json()
+
+    # Best yes bid = implied probability
+    if book["yes"]:
+        implied_prob = book["yes"][0]["price"] / 100
+        print(f"  {market['ticker']}: {implied_prob:.0%} implied probability")
 ```
 
 ---

@@ -10,10 +10,24 @@ KalshiBook provides programmatic access to historical Kalshi orderbook data for 
 - [ReDoc](/redoc): Alternative API documentation
 
 ## Endpoints
-- [POST /orderbook](/docs#/Orderbook/get_orderbook_orderbook_post): Reconstruct orderbook state at any historical timestamp
-- [POST /deltas](/docs#/Deltas/get_deltas_deltas_post): Query raw orderbook deltas by market and time range (paginated)
-- [GET /markets](/docs#/Markets/list_markets_markets_get): List available markets with data coverage dates
-- [GET /markets/{ticker}](/docs#/Markets/get_market_markets__ticker__get): Get market metadata and contract details
+
+### Orderbook & Deltas
+- [POST /orderbook](/docs#/Orderbook/get_orderbook_orderbook_post): Reconstruct orderbook state at any historical timestamp (5 credits)
+- [POST /deltas](/docs#/Deltas/get_deltas_deltas_post): Query raw orderbook deltas by market and time range, paginated (2 credits)
+
+### Markets & Events
+- [GET /markets](/docs#/Markets/list_markets_markets_get): List available markets with data coverage dates (1 credit)
+- [GET /markets/{ticker}](/docs#/Markets/get_market_markets__ticker__get): Get market metadata and contract details (1 credit)
+- [GET /events](/docs#/Events/list_events_events_get): List events with market counts, filterable by category/series/status (1 credit)
+- [GET /events/{event_ticker}](/docs#/Events/get_event_detail_events__event_ticker__get): Event detail with nested markets for multi-market analysis (1 credit)
+
+### Trades & Settlements
+- [POST /trades](/docs#/Trades/get_trades_trades_post): Query trade execution history by market and time range, paginated (2 credits)
+- [GET /settlements](/docs#/Settlements/list_settlements_settlements_get): List settlement results, filterable by event or result (1 credit)
+- [GET /settlements/{ticker}](/docs#/Settlements/get_settlement_settlements__ticker__get): Get settlement result for a specific market (1 credit)
+
+### Candles
+- [GET /candles/{ticker}](/docs#/Candles/get_candles_endpoint_candles__ticker__get): OHLCV candlestick data at 1m, 1h, or 1d intervals from raw trades (3 credits)
 
 ## Authentication
 All data endpoints require an API key sent as `Authorization: Bearer kb-YOUR_KEY`.
@@ -30,7 +44,7 @@ To get an API key:
 
 ## Billing
 
-Credit-based API pricing. Each request costs credits (markets=1, deltas=2, orderbook=5).
+Credit-based API pricing. Each request costs credits (see endpoint list above for costs).
 Free tier: 1,000 credits/month (no card required).
 Pay-As-You-Go: $0.008/credit overage billing.
 Project: $30/month for 4,000 credits + higher rate limits.

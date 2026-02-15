@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 4 executing -- backtesting-ready API (schema & models done, collector extension next)
+**Current focus:** Phase 4 COMPLETE -- backtesting-ready API (all 4 plans done, ready for Phase 5)
 
 ## Current Position
 
-Phase: 4 of 5 (Backtesting-Ready API) -- EXECUTING
-Plan: 3 of 4 in current phase
-Status: Plan 04-03 complete
-Last activity: 2026-02-15 -- Completed 04-03 trade & settlement endpoints (POST /trades, GET /settlements, GET /settlements/{ticker})
+Phase: 4 of 5 (Backtesting-Ready API) -- COMPLETE
+Plan: 4 of 4 in current phase
+Status: Phase 04 complete -- all plans executed
+Last activity: 2026-02-15 -- Completed 04-04 candles, events, and llms.txt documentation
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 3min
-- Total execution time: 0.37 hours
+- Total execution time: 0.45 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [████████░░] 80%
 |-------|-------|-------|----------|
 | 02 | 3 | 12min | 4min |
 | 03 | 2 | 5min | 2.5min |
-| 04 | 3 | 6min | 2min |
+| 04 | 4 | 11min | 2.75min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 2min, 2min, 2min, 2min
+- Last 5 plans: 2min, 2min, 2min, 2min, 5min
 - Trend: stable/improving
 
 *Updated after each plan completion*
@@ -77,6 +77,9 @@ Recent decisions affecting current work:
 - [04-02]: Settlement enrichment retries once after 5s on empty result (Kalshi API propagation delay)
 - [04-02]: Trade channel subscribed without market_tickers filter (receives ALL public trades)
 - [04-02]: Event/series are low-volume direct upserts (no buffering needed unlike trades/deltas)
+- [04-04]: Candle OHLCV uses array_agg for open/close (first/last trade) and MAX/MIN for high/low
+- [04-04]: Empty candle buckets omitted (no forward-fill server-side); documented for consumers
+- [04-04]: Events endpoint uses correlated subquery for market_count (acceptable at current scale)
 
 ### Pending Todos
 
@@ -89,5 +92,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 04-02-PLAN.md (collector extension with trade capture and REST enrichment)
-Resume file: .planning/phases/04-backtesting-ready-api/04-02-SUMMARY.md
+Stopped at: Completed 04-04-PLAN.md (candles, events, llms.txt -- Phase 4 complete)
+Resume file: .planning/phases/04-backtesting-ready-api/04-04-SUMMARY.md

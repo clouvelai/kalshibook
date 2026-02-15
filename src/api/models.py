@@ -239,6 +239,154 @@ class PortalResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Response models — Trades
+# ---------------------------------------------------------------------------
+
+class TradesRequest(BaseModel):
+    """Request to query trades for a market and time range."""
+
+    market_ticker: str = Field(description="Kalshi market ticker")
+    start_time: datetime = Field(description="Start of time range (ISO 8601)")
+    end_time: datetime = Field(description="End of time range (ISO 8601)")
+    cursor: str | None = Field(default=None, description="Pagination cursor from previous response")
+    limit: int = Field(default=100, ge=1, le=1000, description="Number of results per page")
+
+
+class TradeRecord(BaseModel):
+    """A single trade record."""
+
+    trade_id: str = Field(description="Unique trade identifier")
+    market_ticker: str = Field(description="Kalshi market ticker")
+    yes_price: int = Field(description="Yes-side price in cents")
+    no_price: int = Field(description="No-side price in cents")
+    count: int = Field(description="Number of contracts traded")
+    taker_side: str = Field(description="'yes' or 'no'")
+    ts: str = Field(description="ISO 8601 timestamp of the trade")
+
+
+class TradesResponse(BaseModel):
+    """Paginated list of trades."""
+
+    data: list[TradeRecord]
+    next_cursor: str | None = Field(description="Cursor for next page, null if no more results")
+    has_more: bool
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Response models — Settlements
+# ---------------------------------------------------------------------------
+
+class SettlementRecord(BaseModel):
+    """Settlement result for a market."""
+
+    market_ticker: str = Field(description="Kalshi market ticker")
+    event_ticker: str | None = Field(default=None, description="Parent event ticker")
+    result: str | None = Field(default=None, description="Settlement result: yes, no, all_no, all_yes, or void")
+    settlement_value: int | None = Field(default=None, description="Settlement value in cents")
+    determined_at: str | None = Field(default=None, description="When result was determined (ISO 8601)")
+    settled_at: str | None = Field(default=None, description="When settlement was finalized (ISO 8601)")
+
+
+class SettlementResponse(BaseModel):
+    """Single settlement result."""
+
+    data: SettlementRecord
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+class SettlementsResponse(BaseModel):
+    """List of settlement results."""
+
+    data: list[SettlementRecord]
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Response models — Candles
+# ---------------------------------------------------------------------------
+
+class CandleRecord(BaseModel):
+    """OHLCV candle for a market."""
+
+    bucket: str = Field(description="Candle period start (ISO 8601)")
+    market_ticker: str = Field(description="Kalshi market ticker")
+    open: int = Field(description="Opening price in cents")
+    high: int = Field(description="Highest price in cents")
+    low: int = Field(description="Lowest price in cents")
+    close: int = Field(description="Closing price in cents")
+    volume: int = Field(description="Total contracts traded")
+    trade_count: int = Field(description="Number of individual trades")
+
+
+class CandlesResponse(BaseModel):
+    """List of OHLCV candles."""
+
+    data: list[CandleRecord]
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Response models — Events / Hierarchy
+# ---------------------------------------------------------------------------
+
+class EventSummary(BaseModel):
+    """Summary info for an event."""
+
+    event_ticker: str = Field(description="Unique event ticker")
+    series_ticker: str | None = Field(default=None, description="Parent series ticker")
+    title: str | None = Field(default=None, description="Event title")
+    sub_title: str | None = Field(default=None, description="Event subtitle")
+    category: str | None = Field(default=None, description="Event category")
+    mutually_exclusive: bool | None = Field(default=None, description="Whether markets are mutually exclusive")
+    status: str | None = Field(default=None, description="Event status")
+    market_count: int | None = Field(default=None, description="Number of markets in this event")
+
+
+class EventDetail(EventSummary):
+    """Full event detail including child markets."""
+
+    markets: list[MarketSummary] = Field(description="Markets belonging to this event")
+
+
+class EventsResponse(BaseModel):
+    """List of events."""
+
+    data: list[EventSummary]
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+class EventDetailResponse(BaseModel):
+    """Single event with full detail."""
+
+    data: EventDetail
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+class SeriesRecord(BaseModel):
+    """Summary info for a series."""
+
+    ticker: str = Field(description="Unique series ticker")
+    title: str | None = Field(default=None, description="Series title")
+    frequency: str | None = Field(default=None, description="Release frequency")
+    category: str | None = Field(default=None, description="Series category")
+
+
+class SeriesResponse(BaseModel):
+    """List of series."""
+
+    data: list[SeriesRecord]
+    request_id: str
+    response_time: float = Field(description="Server-side processing time in seconds")
+
+
+# ---------------------------------------------------------------------------
 # Error models (for OpenAPI spec documentation)
 # ---------------------------------------------------------------------------
 

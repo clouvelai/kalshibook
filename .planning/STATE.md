@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 4 context gathered -- backtesting-ready API (replaced real-time streaming)
+**Current focus:** Phase 4 executing -- backtesting-ready API (schema & models done, collector extension next)
 
 ## Current Position
 
-Phase: 4 of 5 (Backtesting-Ready API) -- CONTEXT GATHERED
-Plan: 0 of TBD in current phase
-Status: Ready for planning
-Last activity: 2026-02-15 -- Phase 4 context gathered, roadmap updated (Real-Time Streaming replaced with Backtesting-Ready API)
+Phase: 4 of 5 (Backtesting-Ready API) -- EXECUTING
+Plan: 1 of 4 in current phase
+Status: Plan 04-01 complete
+Last activity: 2026-02-15 -- Completed 04-01 schema & models (trades, settlements, events/series tables + Pydantic models)
 
-Progress: [██████░░░░] 60%
+Progress: [██████░░░░] 65%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 3min
-- Total execution time: 0.28 hours
+- Total execution time: 0.31 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [██████░░░░] 60%
 |-------|-------|-------|----------|
 | 02 | 3 | 12min | 4min |
 | 03 | 2 | 5min | 2.5min |
+| 04 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 5min, 3min, 2min
+- Last 5 plans: 5min, 3min, 2min, 2min
 - Trend: stable/improving
 
 *Updated after each plan completion*
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [03-review]: deduct_credits RETURNING includes stripe_customer_id (eliminated redundant query)
 - [03-review]: _to_uuid helper extracted, duplicate Stripe customer creation deduplicated
 - [03-review]: No billing-specific tests yet — add when Phase 4/5 test infrastructure is built
+- [04-01]: Trades table mirrors deltas partitioning strategy (daily PARTITION BY RANGE on ts)
+- [04-01]: Settlements denormalized (no FK to markets) for write performance and direct query access
+- [04-01]: Events/series tables are independent (no FKs) -- hierarchy is conceptual via ticker references
 
 ### Pending Todos
 
@@ -79,5 +83,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Phase 4 context gathered -- ready for planning
-Resume file: .planning/phases/04-backtesting-ready-api/04-CONTEXT.md
+Stopped at: Completed 04-01-PLAN.md (schema & models)
+Resume file: .planning/phases/04-backtesting-ready-api/04-01-SUMMARY.md

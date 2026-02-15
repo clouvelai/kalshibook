@@ -75,10 +75,13 @@ Plans:
   2. Settlement/resolution data is normalized into a queryable format -- users can look up how any market resolved and when
   3. Candlestick/OHLC data is available at 1-minute, 1-hour, and 1-day intervals for any market with captured data
   4. Event/market hierarchy is exposed -- users can query all markets within an event and navigate the Series > Event > Market structure where applicable
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md -- Database schema (trades, settlements, events, series tables) + API models
+- [ ] 04-02-PLAN.md -- Collector extension (trade WS capture, REST enrichment, settlement/event/series data)
+- [ ] 04-03-PLAN.md -- API trades + settlements endpoints
+- [ ] 04-04-PLAN.md -- API candles + events endpoints + llms.txt update
 
 ### Phase 5: Dashboard
 **Goal**: Users can manage their KalshiBook account through a self-service web interface -- API keys, usage visibility, and billing management without contacting support
@@ -104,5 +107,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Data Collection Pipeline | 1/1 | Complete | 2026-02-13 |
 | 2. REST API + Authentication | 3/3 | Complete | 2026-02-14 |
 | 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
-| 4. Backtesting-Ready API | 0/TBD | Not started | - |
+| 4. Backtesting-Ready API | 0/4 | Planned | - |
 | 5. Dashboard | 0/TBD | Not started | - |

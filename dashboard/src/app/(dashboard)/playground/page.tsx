@@ -1,14 +1,11 @@
 "use client";
 
 import { usePlayground } from "@/components/playground/use-playground";
-import { Card, CardContent } from "@/components/ui/card";
+import { PlaygroundForm } from "@/components/playground/playground-form";
+import { CodePanel } from "@/components/playground/code-panel";
 
 export default function PlaygroundPage() {
-  // Wire the hook -- child components (Plan 02/03) will consume the state
   const playground = usePlayground();
-
-  // Suppress unused-var warning in scaffold phase
-  void playground;
 
   return (
     <div className="space-y-6">
@@ -24,22 +21,31 @@ export default function PlaygroundPage() {
 
       {/* Split-panel layout */}
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left panel: form (Plan 02) */}
-        <div className="w-full lg:w-[400px] lg:shrink-0 space-y-6">
-          <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Form panel (Plan 02)
-            </CardContent>
-          </Card>
+        {/* Left panel: form */}
+        <div className="w-full lg:w-[400px] lg:shrink-0">
+          <PlaygroundForm
+            keys={playground.keys}
+            selectedKeyId={playground.selectedKeyId}
+            marketTicker={playground.marketTicker}
+            timestamp={playground.timestamp}
+            depth={playground.depth}
+            isLoading={playground.isLoading}
+            revealedKey={playground.revealedKey}
+            onSelectKey={playground.selectKey}
+            onSetField={playground.setField}
+            onSendRequest={playground.sendRequest}
+            onFillExample={playground.fillExample}
+          />
         </div>
 
-        {/* Right panel: code/response (Plan 02-03) */}
+        {/* Right panel: code/response */}
         <div className="flex-1 min-w-0">
-          <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Code/Response panel (Plan 02-03)
-            </CardContent>
-          </Card>
+          <CodePanel
+            curlCommand={playground.curlCommand}
+            response={playground.response}
+            activeTab={playground.activeTab}
+            onTabChange={playground.setActiveTab}
+          />
         </div>
       </div>
     </div>

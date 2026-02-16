@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 5 IN PROGRESS -- dashboard (plan 4 of 5 done)
+**Current focus:** Phase 6 IN PROGRESS -- API Playground (plan 1 of 3 done)
 
 ## Current Position
 
-Phase: 5 of 5 (Dashboard)
-Plan: 4 of 5 in current phase
-Status: 05-04 complete -- API Keys management page with CRUD dialogs and Billing page with Stripe portal
-Last activity: 2026-02-16 - Completed quick task 1: Add inline quick actions to overview API keys table
+Phase: 6 of 6 (API Playground)
+Plan: 1 of 3 in current phase
+Status: 06-01 complete -- Playground page scaffold with state hook, fetch utility, and sidebar nav
+Last activity: 2026-02-16 - Completed 06-01: Playground foundation
 
 Progress: [██████████] 98%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: 3min
-- Total execution time: 0.65 hours
+- Total execution time: 0.70 hours
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [██████████] 98%
 | 03 | 2 | 5min | 2.5min |
 | 04 | 4 | 11min | 2.75min |
 | 05 | 4 | 12min | 3min |
+| 06 | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 2min, 4min, 3min, 3min
+- Last 5 plans: 2min, 4min, 3min, 3min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [05-04]: Suspense boundary for BillingPageContent useSearchParams (same pattern as LoginForm)
 - [05-04]: Stripe portal button disabled for free tier without PAYG (no Stripe customer)
 - [05-04]: Added shadcn Select component for key type dev/prod dropdown
+- [06-01]: Playground fetch uses API key auth (not Supabase JWT) to mirror real API usage
+- [06-01]: Auto-reveal first API key on mount for zero-friction playground experience
+- [06-01]: Curl generation masks key after first 10 prefix chars for security display
 
 ### Pending Todos
 
@@ -121,5 +125,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-api-playground/06-CONTEXT.md
+Stopped at: Completed 06-01-PLAN.md
+Resume file: .planning/phases/06-api-playground/06-01-SUMMARY.md

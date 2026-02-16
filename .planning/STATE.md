@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 4 COMPLETE -- backtesting-ready API (all 4 plans done, ready for Phase 5)
+**Current focus:** Phase 5 IN PROGRESS -- dashboard (plan 1 of 5 done)
 
 ## Current Position
 
-Phase: 4 of 5 (Backtesting-Ready API) -- COMPLETE
-Plan: 4 of 4 in current phase
-Status: Phase 04 complete -- all plans executed
-Last activity: 2026-02-15 -- Completed 04-04 candles, events, and llms.txt documentation
+Phase: 5 of 5 (Dashboard)
+Plan: 1 of 5 in current phase
+Status: 05-01 complete -- backend gaps filled (key_type, usage endpoint, auto-provisioning)
+Last activity: 2026-02-16 -- Completed 05-01 dashboard backend gaps
 
-Progress: [█████████░] 90%
+Progress: [██████████] 92%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 3min
-- Total execution time: 0.45 hours
+- Total execution time: 0.48 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [█████████░] 90%
 | 02 | 3 | 12min | 4min |
 | 03 | 2 | 5min | 2.5min |
 | 04 | 4 | 11min | 2.75min |
+| 05 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 2min, 2min, 2min, 5min
+- Last 5 plans: 2min, 2min, 2min, 5min, 2min
 - Trend: stable/improving
 
 *Updated after each plan completion*
@@ -80,6 +81,10 @@ Recent decisions affecting current work:
 - [04-04]: Candle OHLCV uses array_agg for open/close (first/last trade) and MAX/MIN for high/low
 - [04-04]: Empty candle buckets omitted (no forward-fill server-side); documented for consumers
 - [04-04]: Events endpoint uses correlated subquery for market_count (acceptable at current scale)
+- [05-01]: key_type column is cosmetic only (dev/prod labels, no rate limit differences) -- easy to extend later
+- [05-01]: Signup provisioning wrapped in try/except so auth never fails due to provisioning errors
+- [05-01]: Usage aggregation scoped to billing_cycle_start via subquery (not hardcoded month boundary)
+- [05-01]: Google OAuth users use lazy init pattern (dashboard creates default key on first load)
 
 ### Pending Todos
 
@@ -93,6 +98,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-15
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-dashboard/05-CONTEXT.md
+Last session: 2026-02-16
+Stopped at: Completed 05-01-PLAN.md
+Resume file: .planning/phases/05-dashboard/05-01-SUMMARY.md

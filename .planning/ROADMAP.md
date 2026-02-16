@@ -116,9 +116,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 ### Phase 6: API Playground
 
-**Goal:** [To be planned]
+**Goal:** Users can interactively configure, preview, and execute API requests from the dashboard -- with live curl generation, syntax-highlighted responses, and orderbook data preview
 **Depends on:** Phase 5
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md -- Foundation: install deps, sidebar nav, page shell, usePlayground hook, fetch utility
+- [ ] 06-02-PLAN.md -- Form panel (key selector, inputs, send button) + code panel (language tabs, syntax-highlighted curl)
+- [ ] 06-03-PLAN.md -- Response panel (JSON/Preview tabs, metadata bar, orderbook preview, empty/loading/error states)

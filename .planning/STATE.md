@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 5 IN PROGRESS -- dashboard (plan 1 of 5 done)
+**Current focus:** Phase 5 IN PROGRESS -- dashboard (plan 2 of 5 done)
 
 ## Current Position
 
 Phase: 5 of 5 (Dashboard)
-Plan: 1 of 5 in current phase
-Status: 05-01 complete -- backend gaps filled (key_type, usage endpoint, auto-provisioning)
-Last activity: 2026-02-16 -- Completed 05-01 dashboard backend gaps
+Plan: 2 of 5 in current phase
+Status: 05-02 complete -- Next.js dashboard scaffolded with Supabase SSR auth, API proxy, login/signup pages
+Last activity: 2026-02-16 -- Completed 05-02 dashboard scaffold and auth pages
 
-Progress: [██████████] 92%
+Progress: [██████████] 94%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 3min
-- Total execution time: 0.48 hours
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [██████████] 92%
 | 02 | 3 | 12min | 4min |
 | 03 | 2 | 5min | 2.5min |
 | 04 | 4 | 11min | 2.75min |
-| 05 | 1 | 2min | 2min |
+| 05 | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 2min, 2min, 5min, 2min
+- Last 5 plans: 2min, 2min, 5min, 2min, 4min
 - Trend: stable/improving
 
 *Updated after each plan completion*
@@ -85,6 +85,10 @@ Recent decisions affecting current work:
 - [05-01]: Signup provisioning wrapped in try/except so auth never fails due to provisioning errors
 - [05-01]: Usage aggregation scoped to billing_cycle_start via subquery (not hardcoded month boundary)
 - [05-01]: Google OAuth users use lazy init pattern (dashboard creates default key on first load)
+- [05-02]: Signup flow calls FastAPI first (provisions billing + key) then Supabase signInWithPassword for browser session
+- [05-02]: API proxy via Next.js rewrites eliminates CORS -- no backend CORS config needed
+- [05-02]: shadcn/ui sonner replaces deprecated toast component
+- [05-02]: LoginForm wrapped in Suspense for useSearchParams SSR compatibility in Next.js 15
 
 ### Pending Todos
 
@@ -99,5 +103,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 05-01-PLAN.md
-Resume file: .planning/phases/05-dashboard/05-01-SUMMARY.md
+Stopped at: Completed 05-02-PLAN.md
+Resume file: .planning/phases/05-dashboard/05-02-SUMMARY.md

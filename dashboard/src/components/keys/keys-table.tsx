@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { KeyUsageItem } from "@/types/api";
 import {
@@ -30,6 +30,11 @@ function formatDate(dateStr: string | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** Mask the key: show prefix + asterisks to simulate full key length */
+function maskKey(prefix: string): string {
+  return `${prefix}${"*".repeat(25)}`;
 }
 
 export function KeysTable({ keys, onRefresh }: KeysTableProps) {
@@ -65,7 +70,7 @@ export function KeysTable({ keys, onRefresh }: KeysTableProps) {
             <TableHead className="text-right">Usage</TableHead>
             <TableHead>Key</TableHead>
             <TableHead>Last Used</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
+            <TableHead className="w-[80px]">Options</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -82,22 +87,20 @@ export function KeysTable({ keys, onRefresh }: KeysTableProps) {
               <TableCell className="text-right tabular-nums">
                 {key.credits_used.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono text-muted-foreground">
-                {key.key_prefix}...
+              <TableCell>
+                <button
+                  onClick={() => handleCopyPrefix(key.key_prefix)}
+                  className="inline-flex items-center rounded-md border bg-muted/50 px-3 py-1.5 font-mono text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                  title="Click to copy"
+                >
+                  {maskKey(key.key_prefix)}
+                </button>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatDate(key.last_used_at)}
               </TableCell>
               <TableCell>
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    title="Copy prefix"
-                    onClick={() => handleCopyPrefix(key.key_prefix)}
-                  >
-                    <Copy className="size-3" />
-                  </Button>
+                <div className="flex items-center gap-1">
                   <EditKeyDialog
                     keyId={key.id}
                     currentName={key.name}
@@ -108,8 +111,9 @@ export function KeysTable({ keys, onRefresh }: KeysTableProps) {
                       variant="ghost"
                       size="icon-xs"
                       title="Edit key"
+                      className="cursor-pointer text-muted-foreground hover:text-foreground"
                     >
-                      <Pencil className="size-3" />
+                      <Pencil className="size-3.5" />
                     </Button>
                   </EditKeyDialog>
                   <RevokeKeyDialog
@@ -121,9 +125,9 @@ export function KeysTable({ keys, onRefresh }: KeysTableProps) {
                       variant="ghost"
                       size="icon-xs"
                       title="Revoke key"
-                      className="text-muted-foreground hover:text-destructive"
+                      className="cursor-pointer text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="size-3" />
+                      <Trash2 className="size-3.5" />
                     </Button>
                   </RevokeKeyDialog>
                 </div>

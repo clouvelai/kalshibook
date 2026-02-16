@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { BillingStatus, KeyUsageItem } from "@/types/api";
 import { UsageBar } from "@/components/billing/usage-bar";
-import { PaygToggle } from "@/components/billing/payg-toggle";
 import { KeysTable } from "@/components/keys/keys-table";
+import { CreateKeyDialog } from "@/components/keys/create-key-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,8 +80,7 @@ export default function OverviewPage() {
             Your API usage at a glance
           </p>
         </div>
-        <Skeleton className="h-[120px] w-full rounded-lg" />
-        <Skeleton className="h-[100px] w-full rounded-lg" />
+        <Skeleton className="h-[200px] w-full rounded-xl" />
         <Skeleton className="h-[200px] w-full rounded-lg" />
       </div>
     );
@@ -100,13 +100,24 @@ export default function OverviewPage() {
           creditsUsed={billing.credits_used}
           creditsTotal={billing.credits_total}
           tier={billing.tier}
+          paygEnabled={billing.payg_enabled}
         />
       )}
 
-      {billing && <PaygToggle initialEnabled={billing.payg_enabled} />}
-
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">API Keys</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">API Keys</h2>
+          <CreateKeyDialog onKeyCreated={fetchData}>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title="Create key"
+              className="cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-3.5" />
+            </Button>
+          </CreateKeyDialog>
+        </div>
         {keys && <KeysTable keys={keys} onRefresh={fetchData} />}
       </div>
     </div>

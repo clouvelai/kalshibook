@@ -59,6 +59,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ name, key_type: keyType }),
       }),
+    update: (keyId: string, data: { name?: string; key_type?: string }) =>
+      fetchAPI<ApiResponse<ApiKeyInfo>>(`/keys/${keyId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     revoke: (keyId: string) =>
       fetchAPI<{ message: string; request_id: string }>(`/keys/${keyId}`, {
         method: "DELETE",

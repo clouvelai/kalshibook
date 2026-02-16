@@ -91,10 +91,14 @@ Plans:
   1. Logged-in user can view all their API keys, create new keys, and revoke existing keys from the dashboard
   2. User can see their current credit usage and remaining balance for the billing period
   3. User can access Stripe's customer portal to manage their subscription and payment methods
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01-PLAN.md -- Backend gaps (key_type column, per-key usage endpoint, default key on signup)
+- [ ] 05-02-PLAN.md -- Next.js 15 scaffolding, Supabase SSR auth, API proxy, login/signup pages
+- [ ] 05-03-PLAN.md -- Dashboard layout with sidebar, Overview page (usage bar, PAYG toggle, keys summary)
+- [ ] 05-04-PLAN.md -- API Keys management page (CRUD + show-once modal), Billing page (Stripe portal)
+- [ ] 05-05-PLAN.md -- End-to-end verification checkpoint
 
 ## Progress
 
@@ -108,4 +112,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. REST API + Authentication | 3/3 | Complete | 2026-02-14 |
 | 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
 | 4. Backtesting-Ready API | 0/4 | Planned | - |
-| 5. Dashboard | 0/TBD | Not started | - |
+| 5. Dashboard | 0/5 | Planned | - |

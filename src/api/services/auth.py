@@ -59,8 +59,8 @@ async def create_api_key(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO api_keys (user_id, key_hash, key_prefix, name, key_type)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO api_keys (user_id, key_hash, key_prefix, name, key_type, key_value)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, created_at
             """,
             user_id,
@@ -68,6 +68,7 @@ async def create_api_key(
             key_prefix,
             name,
             key_type,
+            raw_key,
         )
 
     logger.info("api_key_created", user_id=user_id, key_prefix=key_prefix, name=name, key_type=key_type)
@@ -214,6 +215,30 @@ async def update_api_key(
         "created_at": row["created_at"].isoformat(),
         "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
     }
+
+
+async def reveal_api_key(pool: asyncpg.Pool, key_id: str, user_id: str) -> str | None:
+    """Reveal the full raw API key value.
+
+    Returns the raw key string, or None if the key doesn't exist, isn't owned
+    by the user, is revoked, or was created before key_value storage.
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT key_value
+            FROM api_keys
+            WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+            """,
+            key_id,
+            user_id,
+        )
+
+    if row is None or row["key_value"] is None:
+        return None
+
+    logger.info("api_key_revealed", key_id=key_id, user_id=user_id)
+    return row["key_value"]
 
 
 async def revoke_api_key(pool: asyncpg.Pool, key_id: str, user_id: str) -> bool:

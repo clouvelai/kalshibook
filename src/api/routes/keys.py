@@ -19,7 +19,7 @@ from src.api.models import (
     ApiKeysResponse,
     KeysUsageResponse,
 )
-from src.api.services.auth import create_api_key, list_api_keys, revoke_api_key, update_api_key
+from src.api.services.auth import create_api_key, list_api_keys, reveal_api_key, revoke_api_key, update_api_key
 
 router = APIRouter(tags=["API Keys"])
 
@@ -120,6 +120,31 @@ async def get_keys_usage(
     ]
 
     return KeysUsageResponse(data=data, request_id=request_id)
+
+
+@router.get("/keys/{key_id}/reveal")
+async def reveal_key(
+    key_id: str,
+    request: Request,
+    user: dict = Depends(get_authenticated_user),
+    pool: asyncpg.Pool = Depends(get_db_pool),
+):
+    """Reveal the full raw API key.
+
+    Requires a Supabase access token (from POST /auth/login).
+    Returns the full key value for keys created with reveal support.
+    """
+    request_id = getattr(request.state, "request_id", "")
+    key_value = await reveal_api_key(pool, key_id, user["user_id"])
+
+    if key_value is None:
+        raise KalshiBookError(
+            code="key_not_found",
+            message="API key not found, revoked, or created before reveal was available.",
+            status=404,
+        )
+
+    return {"data": {"key": key_value}, "request_id": request_id}
 
 
 @router.patch("/keys/{key_id}")

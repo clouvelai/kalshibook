@@ -64,6 +64,8 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    reveal: (keyId: string) =>
+      fetchAPI<{ data: { key: string }; request_id: string }>(`/keys/${keyId}/reveal`),
     revoke: (keyId: string) =>
       fetchAPI<{ message: string; request_id: string }>(`/keys/${keyId}`, {
         method: "DELETE",

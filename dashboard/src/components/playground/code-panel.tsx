@@ -1,6 +1,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/playground/code-block";
+import { ResponsePanel } from "@/components/playground/response-panel";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -19,6 +20,7 @@ import type { ActiveTab } from "@/components/playground/use-playground";
 interface CodePanelProps {
   curlCommand: string;
   response: PlaygroundResult | null;
+  isLoading: boolean;
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
 }
@@ -40,6 +42,7 @@ const LANGUAGES = [
 export function CodePanel({
   curlCommand,
   response,
+  isLoading,
   activeTab,
   onTabChange,
 }: CodePanelProps) {
@@ -101,18 +104,7 @@ export function CodePanel({
 
       {/* Response tab content */}
       {activeTab === "response" && (
-        <div className="px-4 py-4">
-          {response ? (
-            <CodeBlock
-              code={JSON.stringify(response.data, null, 2)}
-              language="json"
-            />
-          ) : (
-            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-              Send a request to see the response
-            </div>
-          )}
-        </div>
+        <ResponsePanel response={response} isLoading={isLoading} />
       )}
     </Card>
   );

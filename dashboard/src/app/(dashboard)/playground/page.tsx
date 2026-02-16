@@ -17,6 +17,9 @@ export default function PlaygroundPage() {
         <p className="text-sm text-muted-foreground">
           Test API endpoints and see generated code
         </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Requests from the playground use your API credits
+        </p>
       </div>
 
       {/* Split-panel layout */}
@@ -43,6 +46,7 @@ export default function PlaygroundPage() {
           <CodePanel
             curlCommand={playground.curlCommand}
             response={playground.response}
+            isLoading={playground.isLoading}
             activeTab={playground.activeTab}
             onTabChange={playground.setActiveTab}
           />

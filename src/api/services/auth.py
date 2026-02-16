@@ -154,6 +154,68 @@ async def list_api_keys(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     ]
 
 
+async def update_api_key(
+    pool: asyncpg.Pool,
+    key_id: str,
+    user_id: str,
+    name: str | None = None,
+    key_type: str | None = None,
+) -> dict | None:
+    """Update an API key's name and/or type.
+
+    Only sets fields that are provided (non-None). Validates key_type is
+    'dev' or 'prod' if given.
+
+    Returns:
+        Updated key dict or None if key not found / not owned / revoked.
+    """
+    if key_type is not None and key_type not in ("dev", "prod"):
+        raise ValueError(f"key_type must be 'dev' or 'prod', got '{key_type}'")
+
+    # Build dynamic SET clause for provided fields only
+    set_parts: list[str] = []
+    params: list = [key_id, user_id]
+    idx = 3  # $1=key_id, $2=user_id, params start at $3
+
+    if name is not None:
+        set_parts.append(f"name = ${idx}")
+        params.append(name)
+        idx += 1
+
+    if key_type is not None:
+        set_parts.append(f"key_type = ${idx}")
+        params.append(key_type)
+        idx += 1
+
+    if not set_parts:
+        return None
+
+    query = f"""
+        UPDATE api_keys
+        SET {', '.join(set_parts)}
+        WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+        RETURNING id, name, key_prefix, key_type, created_at, last_used_at
+    """
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(query, *params)
+
+    if row is None:
+        logger.warning("api_key_update_not_found", key_id=key_id, user_id=user_id)
+        return None
+
+    logger.info("api_key_updated", key_id=key_id, user_id=user_id, name=name, key_type=key_type)
+
+    return {
+        "id": str(row["id"]),
+        "name": row["name"],
+        "key_prefix": row["key_prefix"],
+        "key_type": row["key_type"],
+        "created_at": row["created_at"].isoformat(),
+        "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
+    }
+
+
 async def revoke_api_key(pool: asyncpg.Pool, key_id: str, user_id: str) -> bool:
     """Revoke an API key by setting revoked_at.
 

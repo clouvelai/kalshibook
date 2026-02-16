@@ -1,4 +1,4 @@
-"""API key management endpoints — POST /keys, GET /keys, DELETE /keys/{id}.
+"""API key management endpoints — POST, GET, PATCH, DELETE /keys.
 
 All key management endpoints require Supabase JWT authentication
 (not API key auth). Users must first login via POST /auth/login to
@@ -15,10 +15,11 @@ from src.api.errors import KalshiBookError
 from src.api.models import (
     ApiKeyCreate,
     ApiKeyCreatedResponse,
+    ApiKeyUpdate,
     ApiKeysResponse,
     KeysUsageResponse,
 )
-from src.api.services.auth import create_api_key, list_api_keys, revoke_api_key
+from src.api.services.auth import create_api_key, list_api_keys, revoke_api_key, update_api_key
 
 router = APIRouter(tags=["API Keys"])
 
@@ -119,6 +120,47 @@ async def get_keys_usage(
     ]
 
     return KeysUsageResponse(data=data, request_id=request_id)
+
+
+@router.patch("/keys/{key_id}")
+async def update_key(
+    key_id: str,
+    body: ApiKeyUpdate,
+    request: Request,
+    user: dict = Depends(get_authenticated_user),
+    pool: asyncpg.Pool = Depends(get_db_pool),
+):
+    """Update an API key's name and/or type.
+
+    Requires a Supabase access token (from POST /auth/login).
+    The key must belong to the authenticated user.
+    """
+    request_id = getattr(request.state, "request_id", "")
+
+    if body.name is None and body.key_type is None:
+        raise KalshiBookError(
+            code="no_fields",
+            message="No fields to update",
+            status=400,
+        )
+
+    try:
+        result = await update_api_key(pool, key_id, user["user_id"], body.name, body.key_type)
+    except ValueError as exc:
+        raise KalshiBookError(
+            code="invalid_key_type",
+            message=str(exc),
+            status=400,
+        )
+
+    if result is None:
+        raise KalshiBookError(
+            code="key_not_found",
+            message="API key not found or already revoked.",
+            status=404,
+        )
+
+    return {"data": result, "request_id": request_id}
 
 
 @router.delete("/keys/{key_id}")

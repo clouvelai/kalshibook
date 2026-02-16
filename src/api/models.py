@@ -137,6 +137,13 @@ class ApiKeyCreate(BaseModel):
     key_type: str = Field(default="dev", description="Key type: 'dev' or 'prod'")
 
 
+class ApiKeyUpdate(BaseModel):
+    """Request to update an existing API key."""
+
+    name: str | None = Field(default=None, max_length=100)
+    key_type: str | None = Field(default=None, description="Key type: 'dev' or 'prod'")
+
+
 class ApiKeyCreated(BaseModel):
     """Response after creating an API key (raw key shown once)."""
 

@@ -113,3 +113,12 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
 | 4. Backtesting-Ready API | 0/4 | Planned | - |
 | 5. Dashboard | 0/5 | Planned | - |
+
+### Phase 6: API Playground
+
+**Goal:** [To be planned]
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 6 to break down)

@@ -104,6 +104,10 @@ Recent decisions affecting current work:
 2. **Subscribe to ticker WS channel for open interest data** (collector) — The Kalshi `ticker` channel provides open interest that we can't derive from trades/orderbook. Would enrich candle data. Low priority — trade-price candles + volume serve primary use case.
 3. **Fetch Kalshi event candlesticks for untracked markets** (api) — Kalshi's public GET /series/{series}/events/{event}/candlesticks returns rich OHLC+volume+OI data for ALL markets in an event, no auth needed. Would enable directional backtesting for events we don't track.
 
+### Roadmap Evolution
+
+- Phase 6 added: API Playground
+
 ### Blockers/Concerns
 
 - None active. supabase-py websockets conflict resolved by building httpx GoTrue client (02-03).

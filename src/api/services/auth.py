@@ -46,10 +46,11 @@ async def create_api_key(
     pool: asyncpg.Pool,
     user_id: str,
     name: str = "Default",
+    key_type: str = "dev",
 ) -> dict:
     """Create a new API key for a user.
 
-    Returns a dict with id, key (raw), name, key_prefix, created_at.
+    Returns a dict with id, key (raw), name, key_prefix, key_type, created_at.
     The raw key is included so it can be shown to the user once.
     """
     raw_key, key_hash = generate_api_key()
@@ -58,23 +59,25 @@ async def create_api_key(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO api_keys (user_id, key_hash, key_prefix, name)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO api_keys (user_id, key_hash, key_prefix, name, key_type)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id, created_at
             """,
             user_id,
             key_hash,
             key_prefix,
             name,
+            key_type,
         )
 
-    logger.info("api_key_created", user_id=user_id, key_prefix=key_prefix, name=name)
+    logger.info("api_key_created", user_id=user_id, key_prefix=key_prefix, name=name, key_type=key_type)
 
     return {
         "id": str(row["id"]),
         "key": raw_key,
         "name": name,
         "key_prefix": key_prefix,
+        "key_type": key_type,
         "created_at": row["created_at"].isoformat(),
     }
 
@@ -125,12 +128,12 @@ async def validate_api_key(pool: asyncpg.Pool, raw_key: str) -> dict | None:
 async def list_api_keys(pool: asyncpg.Pool, user_id: str) -> list[dict]:
     """List all non-revoked API keys for a user.
 
-    Returns a list of dicts with id, name, key_prefix, created_at, last_used_at.
+    Returns a list of dicts with id, name, key_prefix, key_type, created_at, last_used_at.
     """
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, name, key_prefix, created_at, last_used_at
+            SELECT id, name, key_prefix, key_type, created_at, last_used_at
             FROM api_keys
             WHERE user_id = $1 AND revoked_at IS NULL
             ORDER BY created_at DESC
@@ -143,6 +146,7 @@ async def list_api_keys(pool: asyncpg.Pool, user_id: str) -> list[dict]:
             "id": str(row["id"]),
             "name": row["name"],
             "key_prefix": row["key_prefix"],
+            "key_type": row["key_type"],
             "created_at": row["created_at"].isoformat(),
             "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
         }

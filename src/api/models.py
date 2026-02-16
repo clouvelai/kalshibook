@@ -134,6 +134,7 @@ class ApiKeyCreate(BaseModel):
     """Request to create a new API key."""
 
     name: str = Field(default="Default", max_length=100)
+    key_type: str = Field(default="dev", description="Key type: 'dev' or 'prod'")
 
 
 class ApiKeyCreated(BaseModel):
@@ -143,6 +144,7 @@ class ApiKeyCreated(BaseModel):
     key: str = Field(description="Raw API key — shown ONCE, store it securely")
     name: str
     key_prefix: str
+    key_type: str = Field(default="dev", description="Key type: 'dev' or 'prod'")
     created_at: str
 
 
@@ -152,8 +154,28 @@ class ApiKeyInfo(BaseModel):
     id: str
     name: str
     key_prefix: str
+    key_type: str = Field(default="dev", description="Key type: 'dev' or 'prod'")
     created_at: str
     last_used_at: str | None = None
+
+
+class KeyUsageItem(BaseModel):
+    """Per-key usage info with aggregated credits for the current billing cycle."""
+
+    id: str
+    name: str
+    key_prefix: str
+    key_type: str
+    created_at: str
+    last_used_at: str | None = None
+    credits_used: int = Field(description="Credits consumed by this key in the current billing cycle")
+
+
+class KeysUsageResponse(BaseModel):
+    """Per-key usage aggregation response."""
+
+    data: list[KeyUsageItem]
+    request_id: str
 
 
 class ApiKeysResponse(BaseModel):

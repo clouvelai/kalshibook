@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
+  Terminal,
   Key,
   CreditCard,
   ExternalLink,
@@ -29,6 +30,12 @@ const navItems = [
     title: "Overview",
     href: "/",
     icon: LayoutDashboard,
+    external: false,
+  },
+  {
+    title: "Playground",
+    href: "/playground",
+    icon: Terminal,
     external: false,
   },
   {

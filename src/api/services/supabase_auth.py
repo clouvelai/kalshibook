@@ -63,21 +63,20 @@ class SupabaseAuthClient:
 
         data = resp.json()
 
-        # Supabase returns session data in the response
-        session = data.get("session") or {}
+        # GoTrue returns access_token at root level (not nested under "session")
+        access_token = data.get("access_token")
         user = data.get("user") or {}
 
-        if not session.get("access_token"):
+        if not access_token:
             # User created but no session (email confirmation required)
-            # Still return the user_id so the caller knows signup succeeded
             raise Exception(
                 "Signup successful but email confirmation is required. "
                 "Please check your email to confirm your account before logging in."
             )
 
         return {
-            "access_token": session["access_token"],
-            "refresh_token": session.get("refresh_token", ""),
+            "access_token": access_token,
+            "refresh_token": data.get("refresh_token", ""),
             "user_id": str(user.get("id", "")),
         }
 

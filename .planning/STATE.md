@@ -89,6 +89,10 @@ Recent decisions affecting current work:
 - [05-02]: API proxy via Next.js rewrites eliminates CORS -- no backend CORS config needed
 - [05-02]: shadcn/ui sonner replaces deprecated toast component
 - [05-02]: LoginForm wrapped in Suspense for useSearchParams SSR compatibility in Next.js 15
+- [05-03]: Dashboard layout uses server component for auth + client DashboardShell wrapper for SidebarProvider
+- [05-03]: Documentation sidebar link opens /api/llms-full.txt in new tab (proxied via Next.js rewrites)
+- [05-03]: Overview keys table is read-only summary (no CRUD actions); full management on /keys page
+- [05-03]: Mobile sidebar uses SidebarTrigger in a sticky header bar
 - [05-04]: Show-once key pattern: raw key in React state only during dialog Phase 2, cleared on close
 - [05-04]: Suspense boundary for BillingPageContent useSearchParams (same pattern as LoginForm)
 - [05-04]: Stripe portal button disabled for free tier without PAYG (no Stripe customer)

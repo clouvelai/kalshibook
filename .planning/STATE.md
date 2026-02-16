@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-02-13)
 Phase: 5 of 5 (Dashboard)
 Plan: 4 of 5 in current phase
 Status: 05-04 complete -- API Keys management page with CRUD dialogs and Billing page with Stripe portal
-Last activity: 2026-02-16 -- Completed 05-04 keys and billing pages
+Last activity: 2026-02-16 - Completed quick task 1: Add inline quick actions to overview API keys table
 
 Progress: [██████████] 98%
 
@@ -91,7 +91,7 @@ Recent decisions affecting current work:
 - [05-02]: LoginForm wrapped in Suspense for useSearchParams SSR compatibility in Next.js 15
 - [05-03]: Dashboard layout uses server component for auth + client DashboardShell wrapper for SidebarProvider
 - [05-03]: Documentation sidebar link opens /api/llms-full.txt in new tab (proxied via Next.js rewrites)
-- [05-03]: Overview keys table is read-only summary (no CRUD actions); full management on /keys page
+- [05-03→quick-1]: Overview keys table now has inline quick actions (copy prefix, edit name/type, revoke) via icon buttons
 - [05-03]: Mobile sidebar uses SidebarTrigger in a sticky header bar
 - [05-04]: Show-once key pattern: raw key in React state only during dialog Phase 2, cleared on close
 - [05-04]: Suspense boundary for BillingPageContent useSearchParams (same pattern as LoginForm)
@@ -111,6 +111,12 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 - None active. supabase-py websockets conflict resolved by building httpx GoTrue client (02-03).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Add inline quick actions (copy, edit, delete) to overview API keys table | 2026-02-16 | b9cad55 | [1-implement-the-quick-actions-on-the-api-p](./quick/1-implement-the-quick-actions-on-the-api-p/) |
 
 ## Session Continuity
 

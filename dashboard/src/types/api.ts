@@ -66,3 +66,27 @@ export interface PaygToggleResponse {
   message: string;
   request_id: string;
 }
+
+/** Playground / Orderbook types */
+
+export interface OrderbookRequest {
+  market_ticker: string;
+  timestamp?: string;
+  depth?: number;
+}
+
+export interface OrderbookLevel {
+  price: number;
+  quantity: number;
+}
+
+export interface OrderbookResponse {
+  market_ticker: string;
+  timestamp: string;
+  yes: OrderbookLevel[];
+  no: OrderbookLevel[];
+  snapshot_basis: string;
+  deltas_applied: number;
+  response_time: number;
+  request_id: string;
+}

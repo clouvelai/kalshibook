@@ -107,7 +107,7 @@ export default function OverviewPage() {
 
       <div className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">API Keys</h2>
-        {keys && <KeysTable keys={keys} />}
+        {keys && <KeysTable keys={keys} onRefresh={fetchData} />}
       </div>
     </div>
   );

@@ -26,6 +26,7 @@ dist/
 build/
 .next/
 out/
+site/
 
 # Supabase
 supabase/.temp/

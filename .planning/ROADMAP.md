@@ -29,7 +29,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full details.
 - [x] **Phase 8: SDK Scaffolding** (1/1 plans) — completed 2026-02-17
 - [ ] **Phase 9: Models, Exceptions, and HTTP Transport** - Typed response models, exception hierarchy, httpx transport with auth/retry/credits
 - [x] **Phase 10: Client Class and Data Endpoints** - KalshiBook client with sync/async, all non-paginated endpoint methods (completed 2026-02-17)
-- [ ] **Phase 11: Pagination and DataFrame Support** - Auto-paginating async generators for cursor endpoints, .to_df() conversion
+- [x] **Phase 11: Pagination and DataFrame Support** - Auto-paginating async generators for cursor endpoints, .to_df() conversion (completed 2026-02-17)
 - [ ] **Phase 12: Documentation and PyPI Publishing** - mkdocs-material docs site, API reference, Getting Started guide, publish to PyPI
 
 ## Phase Details
@@ -88,7 +88,7 @@ Plans:
   3. User can query settlements via `client.list_settlements()` with auto-pagination
   4. User can call `.to_df()` on any paginated result to get a pandas DataFrame with correctly typed columns
   5. pandas is optional -- `pip install kalshibook` works without pandas; `pip install kalshibook[pandas]` enables `.to_df()`
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 11-01-PLAN.md -- PageIterator class, DataFrame helper, .to_df() on response models, package exports
 - [ ] 11-02-PLAN.md -- Client endpoint methods (settlements + paginated) and comprehensive tests
@@ -121,5 +121,5 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 8. SDK Scaffolding | v1.1 | 1/1 | Complete | 2026-02-17 |
 | 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/3 | Planned | - |
 | 10. Client Class and Data Endpoints | v1.1 | Complete    | 2026-02-17 | - |
-| 11. Pagination and DataFrame Support | v1.1 | 0/? | Not started | - |
+| 11. Pagination and DataFrame Support | v1.1 | Complete    | 2026-02-17 | - |
 | 12. Documentation and PyPI Publishing | v1.1 | 0/? | Not started | - |

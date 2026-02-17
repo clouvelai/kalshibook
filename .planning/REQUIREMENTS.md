@@ -1,7 +1,7 @@
 # Requirements: KalshiBook
 
 **Defined:** 2026-02-17
-**Core Value:** Reliable, complete orderbook history for every Kalshi market — reconstructable to any point in time
+**Core Value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
 
 ## v1.1 Requirements
 
@@ -85,35 +85,35 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SDKC-01 | — | Pending |
-| SDKC-02 | — | Pending |
-| SDKC-03 | — | Pending |
-| SDKC-04 | — | Pending |
-| SDKC-05 | — | Pending |
-| SDKC-06 | — | Pending |
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| DATA-05 | — | Pending |
-| DATA-06 | — | Pending |
-| DATA-07 | — | Pending |
-| DATA-08 | — | Pending |
-| DFRA-01 | — | Pending |
-| DFRA-02 | — | Pending |
-| DOCS-01 | — | Pending |
-| DOCS-02 | — | Pending |
-| DOCS-03 | — | Pending |
-| DOCS-04 | — | Pending |
-| PACK-01 | — | Pending |
-| PACK-02 | — | Pending |
-| PACK-03 | — | Pending |
+| SDKC-01 | Phase 8 | Pending |
+| SDKC-02 | Phase 9 | Pending |
+| SDKC-03 | Phase 9 | Pending |
+| SDKC-04 | Phase 9 | Pending |
+| SDKC-05 | Phase 9 | Pending |
+| SDKC-06 | Phase 9 | Pending |
+| DATA-01 | Phase 10 | Pending |
+| DATA-02 | Phase 11 | Pending |
+| DATA-03 | Phase 11 | Pending |
+| DATA-04 | Phase 10 | Pending |
+| DATA-05 | Phase 10 | Pending |
+| DATA-06 | Phase 10 | Pending |
+| DATA-07 | Phase 11 | Pending |
+| DATA-08 | Phase 10 | Pending |
+| DFRA-01 | Phase 11 | Pending |
+| DFRA-02 | Phase 11 | Pending |
+| DOCS-01 | Phase 12 | Pending |
+| DOCS-02 | Phase 12 | Pending |
+| DOCS-03 | Phase 12 | Pending |
+| DOCS-04 | Phase 12 | Pending |
+| PACK-01 | Phase 12 | Pending |
+| PACK-02 | Phase 8 | Pending |
+| PACK-03 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-17*
-*Last updated: 2026-02-17 after initial definition*
+*Last updated: 2026-02-17 after roadmap creation*

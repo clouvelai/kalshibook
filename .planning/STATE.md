@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 9 of 12 (Models, Exceptions, and HTTP Transport)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-02-17 -- Plan 09-01 (Exceptions and Parsing) complete
+Last activity: 2026-02-17 -- Plan 09-02 (Response Models) complete
 
-Progress: [######################........] 67% (8/12 phases, 21 plans complete)
+Progress: [######################........] 67% (8/12 phases, 22 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
+- Total plans completed: 22
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -35,10 +35,10 @@ Progress: [######################........] 67% (8/12 phases, 21 plans complete)
 | 06 | 3 | 7min | 2.3min |
 | 07 | 1 | 3min | 3min |
 | 08 | 1 | 2min | 2min |
-| 09 | 1 | 1min | 1min |
+| 09 | 2 | 3min | 1.5min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 2min, 3min, 2min, 1min
+- Last 5 plans: 2min, 3min, 2min, 1min, 2min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -59,6 +59,8 @@ v1.1 decisions:
 - httpx>=0.27 as sole runtime dependency (no upper bound); pandas>=2.0 as optional extra
 - SDK exceptions use status_code/response_body attributes (distinct from server's code/status pattern)
 - parse_datetime normalizes Z suffix to +00:00 for Python 3.10 compatibility
+- Flat dataclass structures (no inheritance) for MarketDetail/EventDetail -- stdlib slots+inheritance broken
+- ResponseMeta.from_headers() uses -1 sentinel for missing credit headers (not 0, which is valid)
 
 ### Pending Todos
 
@@ -73,5 +75,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 09-01-PLAN.md
-Resume: Execute 09-02-PLAN.md next
+Stopped at: Completed 09-02-PLAN.md
+Resume: Execute 09-03-PLAN.md next

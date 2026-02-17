@@ -73,7 +73,10 @@ Plans:
   2. User can list available markets with coverage dates via `client.list_markets()` and see which tickers have data
   3. User can get market details, candles, and event hierarchy via `client.get_market()`, `client.get_candles()`, `client.list_events()`, `client.get_event()`
   4. All returned objects are typed dataclasses with attribute access (e.g., `market.ticker`, `candle.open`) -- not raw dicts
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Endpoint methods (sync + async) and private helpers on KalshiBook client
+- [ ] 10-02-PLAN.md — Comprehensive endpoint tests with pytest-httpx mocks
 
 ### Phase 11: Pagination and DataFrame Support
 **Goal**: Users can iterate over large result sets (deltas, trades, settlements) without manual cursor management, and convert any list result to a pandas DataFrame
@@ -114,6 +117,6 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 7. v1 Cleanup & Polish | v1.0 | 1/1 | Complete | 2026-02-17 |
 | 8. SDK Scaffolding | v1.1 | 1/1 | Complete | 2026-02-17 |
 | 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/3 | Planned | - |
-| 10. Client Class and Data Endpoints | v1.1 | 0/? | Not started | - |
+| 10. Client Class and Data Endpoints | v1.1 | 0/2 | Planned | - |
 | 11. Pagination and DataFrame Support | v1.1 | 0/? | Not started | - |
 | 12. Documentation and PyPI Publishing | v1.1 | 0/? | Not started | - |

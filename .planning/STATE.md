@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 8 - SDK Scaffolding (v1.1 Python SDK)
+**Current focus:** Phase 9 - Models, Exceptions, and HTTP Transport (v1.1 Python SDK)
 
 ## Current Position
 
-Phase: 8 of 12 (SDK Scaffolding)
-Plan: 1 of 1 in current phase (COMPLETE)
-Status: Phase 8 complete
-Last activity: 2026-02-17 -- Completed 08-01 SDK package scaffolding
+Phase: 9 of 12 (Models, Exceptions, and HTTP Transport)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-02-17 -- Phase 8 SDK Scaffolding complete
 
 Progress: [######################........] 67% (8/12 phases, 20 plans complete)
 

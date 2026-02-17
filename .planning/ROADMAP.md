@@ -26,7 +26,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full details.
 
 **Milestone Goal:** Give users a first-class Python client for KalshiBook -- install via pip, query any endpoint with typed responses, auto-paginate large result sets, convert to DataFrames for analysis.
 
-- [ ] **Phase 8: SDK Scaffolding** - uv workspace, package structure, pyproject.toml with minimal deps
+- [x] **Phase 8: SDK Scaffolding** (1/1 plans) — completed 2026-02-17
 - [ ] **Phase 9: Models, Exceptions, and HTTP Transport** - Typed response models, exception hierarchy, httpx transport with auth/retry/credits
 - [ ] **Phase 10: Client Class and Data Endpoints** - KalshiBook client with sync/async, all non-paginated endpoint methods
 - [ ] **Phase 11: Pagination and DataFrame Support** - Auto-paginating async generators for cursor endpoints, .to_df() conversion
@@ -46,7 +46,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full details.
   5. `py.typed` marker is present so mypy recognizes the package as typed
 **Plans:** 1 plan
 Plans:
-- [ ] 08-01-PLAN.md — SDK package structure, uv workspace integration, and distribution verification
+- [x] 08-01-PLAN.md — SDK package structure, uv workspace integration, and distribution verification
 
 ### Phase 9: Models, Exceptions, and HTTP Transport
 **Goal**: The SDK has typed response models for every API shape, a structured exception hierarchy matching API error codes, and an HTTP layer that handles auth injection, retry, and credit tracking
@@ -108,7 +108,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 5. Dashboard | v1.0 | 5/5 | Complete | 2026-02-16 |
 | 6. API Playground | v1.0 | 3/3 | Complete | 2026-02-16 |
 | 7. v1 Cleanup & Polish | v1.0 | 1/1 | Complete | 2026-02-17 |
-| 8. SDK Scaffolding | v1.1 | 0/1 | Not started | - |
+| 8. SDK Scaffolding | v1.1 | 1/1 | Complete | 2026-02-17 |
 | 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/? | Not started | - |
 | 10. Client Class and Data Endpoints | v1.1 | 0/? | Not started | - |
 | 11. Pagination and DataFrame Support | v1.1 | 0/? | Not started | - |

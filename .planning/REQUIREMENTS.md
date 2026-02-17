@@ -9,7 +9,7 @@ Requirements for Python SDK milestone. Each maps to roadmap phases.
 
 ### SDK Core
 
-- [ ] **SDKC-01**: User can install SDK via `pip install kalshibook`
+- [x] **SDKC-01**: User can install SDK via `pip install kalshibook`
 - [ ] **SDKC-02**: User can initialize client with API key (`KalshiBook(api_key="...")`)
 - [ ] **SDKC-03**: User can initialize client from environment variable (`KalshiBook.from_env()`)
 - [ ] **SDKC-04**: Client supports both sync and async usage patterns
@@ -42,8 +42,8 @@ Requirements for Python SDK milestone. Each maps to roadmap phases.
 ### Packaging
 
 - [ ] **PACK-01**: SDK published to PyPI with py.typed marker
-- [ ] **PACK-02**: SDK uses uv workspace in monorepo (sdk/ directory)
-- [ ] **PACK-03**: Minimal dependencies (httpx only, pandas optional)
+- [x] **PACK-02**: SDK uses uv workspace in monorepo (sdk/ directory)
+- [x] **PACK-03**: Minimal dependencies (httpx only, pandas optional)
 
 ## Future Requirements
 
@@ -85,7 +85,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SDKC-01 | Phase 8 | Pending |
+| SDKC-01 | Phase 8 | Complete |
 | SDKC-02 | Phase 9 | Pending |
 | SDKC-03 | Phase 9 | Pending |
 | SDKC-04 | Phase 9 | Pending |
@@ -106,8 +106,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOCS-03 | Phase 12 | Pending |
 | DOCS-04 | Phase 12 | Pending |
 | PACK-01 | Phase 12 | Pending |
-| PACK-02 | Phase 8 | Pending |
-| PACK-03 | Phase 8 | Pending |
+| PACK-02 | Phase 8 | Complete |
+| PACK-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 23 total

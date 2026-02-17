@@ -186,6 +186,7 @@ export function usePlayground(): PlaygroundState & PlaygroundActions {
 
   const setField = useCallback(
     (field: "marketTicker" | "timestamp" | "depth", value: string) => {
+      setRequestError(null);
       switch (field) {
         case "marketTicker":
           setMarketTicker(value);
@@ -220,6 +221,11 @@ export function usePlayground(): PlaygroundState & PlaygroundActions {
       return;
     }
 
+    if (!timestamp.trim()) {
+      setRequestError("Timestamp is required. Enter an ISO 8601 timestamp (e.g., 2025-02-14T18:00:00Z).");
+      return;
+    }
+
     setIsLoading(true);
     setRequestError(null);
 
@@ -227,7 +233,7 @@ export function usePlayground(): PlaygroundState & PlaygroundActions {
       const body: Record<string, unknown> = {
         market_ticker: marketTicker,
       };
-      if (timestamp) body.timestamp = timestamp;
+      body.timestamp = timestamp;
       if (depth) body.depth = parseInt(depth, 10);
 
       const result = await executePlaygroundRequest(

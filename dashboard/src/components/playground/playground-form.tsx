@@ -55,7 +55,7 @@ export function PlaygroundForm({
 }: PlaygroundFormProps) {
   const [additionalOpen, setAdditionalOpen] = useState(false);
 
-  const canSend = !!revealedKey && !!marketTicker.trim() && !isLoading;
+  const canSend = !!revealedKey && !!marketTicker.trim() && !!timestamp.trim() && !isLoading;
 
   return (
     <div className="space-y-5">
@@ -101,6 +101,20 @@ export function PlaygroundForm({
         />
       </div>
 
+      {/* Timestamp */}
+      <div className="space-y-2">
+        <Label htmlFor="timestamp">
+          Timestamp (ISO 8601) <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="timestamp"
+          value={timestamp}
+          onChange={(e) => onSetField("timestamp", e.target.value)}
+          placeholder="e.g. 2025-02-14T18:00:00Z"
+          className="text-base md:text-base"
+        />
+      </div>
+
       {/* Additional Fields toggle */}
       <div>
         <button
@@ -118,17 +132,6 @@ export function PlaygroundForm({
 
         {additionalOpen && (
           <div className="mt-3 space-y-4 pl-1">
-            {/* Timestamp */}
-            <div className="space-y-2">
-              <Label htmlFor="timestamp">Timestamp (ISO 8601)</Label>
-              <Input
-                id="timestamp"
-                value={timestamp}
-                onChange={(e) => onSetField("timestamp", e.target.value)}
-                placeholder="e.g. 2025-02-14T18:00:00Z"
-              />
-            </div>
-
             {/* Depth */}
             <div className="space-y-2">
               <Label htmlFor="depth">Depth</Label>

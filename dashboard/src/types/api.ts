@@ -71,7 +71,7 @@ export interface PaygToggleResponse {
 
 export interface OrderbookRequest {
   market_ticker: string;
-  timestamp?: string;
+  timestamp: string;
   depth?: number;
 }
 

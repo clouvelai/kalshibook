@@ -39,6 +39,9 @@ export default function PlaygroundPage() {
             onSendRequest={playground.sendRequest}
             onFillExample={playground.fillExample}
           />
+          {playground.requestError && (
+            <p className="text-sm text-destructive mt-3">{playground.requestError}</p>
+          )}
         </div>
 
         {/* Right panel: code/response */}

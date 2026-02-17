@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 12 of 12 (Documentation & PyPI Publishing)
-Plan: 1 of 3 in current phase (12-01 complete)
+Plan: 2 of 3 in current phase (12-02 complete)
 Status: Executing Phase 12
-Last activity: 2026-02-17 -- Plan 12-01 (Docs Infrastructure & Version Fix) complete
+Last activity: 2026-02-17 -- Plan 12-02 (Hand-Written Docs Content) complete
 
-Progress: [#############################.] 93% (12/12 phases, 28 plans complete)
+Progress: [##############################] 97% (12/12 phases, 29 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
+- Total plans completed: 29
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -38,10 +38,10 @@ Progress: [#############################.] 93% (12/12 phases, 28 plans complete)
 | 09 | 3 | 5min | 1.7min |
 | 10 | 2 | 3min | 1.5min |
 | 11 | 2 | 4min | 2min |
-| 12 | 1 | 2min | 2min |
+| 12 | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 1min, 2min, 2min, 2min
+- Last 5 plans: 1min, 2min, 2min, 2min, 4min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -74,6 +74,9 @@ v1.1 decisions:
 - Eager first-page fetch in paginated methods so errors surface at call time, not during iteration
 - Inner closure pattern for fetch_page captures pre-computed ISO timestamps outside the closure
 - mkdocs-material with gen-files/literate-nav recipe for auto-generated API reference from NumPy docstrings
+- Sync/async tabbed examples in Getting Started; sync primary elsewhere for simplicity
+- Field reference tables on each example page for quick attribute lookup without API reference
+- index.md quick start corrected to match actual API signatures (get_orderbook requires timestamp, response has yes/no)
 
 ### Pending Todos
 
@@ -88,5 +91,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 12-01-PLAN.md
-Resume: Continue with Plan 12-02 (Hand-written docs content)
+Stopped at: Completed 12-02-PLAN.md
+Resume: Continue with Plan 12-03 (CI/CD & PyPI publishing)

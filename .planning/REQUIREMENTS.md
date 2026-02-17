@@ -26,11 +26,6 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **DSRV-04**: User can query market metadata (event info, contract specs)
 - [ ] **DSRV-05**: All API responses use consistent JSON format with structured error envelope
 
-### Real-time Streaming
-
-- [ ] **STRM-01**: User can subscribe to real-time orderbook updates via websocket
-- [ ] **STRM-02**: Streaming requires valid API key authentication on connect
-
 ### Authentication & Access Control
 
 - [ ] **AUTH-01**: User can create account (email/password via Supabase Auth)
@@ -69,6 +64,11 @@ Deferred to future release. Tracked but not in current roadmap.
 - **SDK-01**: Python SDK auto-generated from OpenAPI spec
 - **SDK-02**: TypeScript SDK auto-generated from OpenAPI spec
 - **SDK-03**: JavaScript SDK auto-generated from OpenAPI spec
+
+### Real-time Streaming
+
+- **STRM-01**: User can subscribe to real-time orderbook updates via websocket
+- **STRM-02**: Streaming requires valid API key authentication on connect
 
 ### Advanced Features
 
@@ -124,15 +124,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BILL-04 | Phase 3 | Pending |
 | BILL-05 | Phase 3 | Pending |
 | BILL-06 | Phase 3 | Pending |
-| STRM-01 | Phase 4 | Pending |
-| STRM-02 | Phase 4 | Pending |
 | DASH-01 | Phase 5 | Pending |
 | DASH-02 | Phase 5 | Pending |
 | DASH-03 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 32
+- v1 requirements: 30 total (STRM-01/02 moved to v2)
+- Mapped to phases: 30
 - Unmapped: 0
 
 ---

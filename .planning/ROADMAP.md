@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Billing + Monetization** - Credit-based pricing with Stripe subscriptions and usage metering
 - [ ] **Phase 4: Backtesting-Ready API** - Complete the data layer with trade capture, settlements, candles, and event hierarchy
 - [ ] **Phase 5: Dashboard** - Self-service web UI for API key management, usage tracking, and billing
+- [ ] **Phase 7: v1 Cleanup & Polish** - Close audit gaps: playground validation, dead code removal, requirements traceability
 
 ## Phase Details
 
@@ -113,6 +114,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Billing + Monetization | 2/2 | Complete | 2026-02-14 |
 | 4. Backtesting-Ready API | 0/4 | Planned | - |
 | 5. Dashboard | 0/5 | Planned | - |
+| 7. v1 Cleanup & Polish | 0/1 | Planned | - |
 
 ### Phase 6: API Playground
 
@@ -124,3 +126,17 @@ Plans:
 - [ ] 06-01-PLAN.md -- Foundation: install deps, sidebar nav, page shell, usePlayground hook, fetch utility
 - [ ] 06-02-PLAN.md -- Form panel (key selector, inputs, send button) + code panel (language tabs, syntax-highlighted curl)
 - [ ] 06-03-PLAN.md -- Response panel (JSON/Preview tabs, metadata bar, orderbook preview, empty/loading/error states)
+
+### Phase 7: v1 Cleanup & Polish
+**Goal:** Close all integration/flow gaps and tech debt from the v1 milestone audit -- playground validation, dead code removal, and requirements traceability update
+**Depends on:** Phase 6
+**Requirements:** (tech debt closure -- no new requirements)
+**Gap Closure:** Closes gaps from v1-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. Playground validates required timestamp field client-side before sending request (no raw 422 errors)
+  2. No orphaned dead code remains (PaygToggle component removed, SeriesRecord/SeriesResponse resolved)
+  3. REQUIREMENTS.md traceability is current (BKTS-01-04 added, STRM-01/02 moved to v2, Phase 6 coverage noted)
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01-PLAN.md -- Playground timestamp validation, dead code cleanup, REQUIREMENTS.md traceability update

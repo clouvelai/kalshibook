@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     db_pool_min_size: int = 5
     db_pool_max_size: int = 20
 
+    # Dev login (used by scripts/dev-login.sh, ignored by app)
+    dev_user_email: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

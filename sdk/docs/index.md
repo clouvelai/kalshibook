@@ -34,17 +34,21 @@ through a simple, well-documented API.
 ## Quick Start
 
 ```python
+from datetime import datetime, timezone
 from kalshibook import KalshiBook
 
 client = KalshiBook("kb-your-api-key")
 
-# Get a market's orderbook
-book = client.get_orderbook("KXBTC-25FEB14-T98250")
-for level in book.data.bids[:5]:
-    print(f"  {level.price}c  {level.quantity} contracts")
+# Reconstruct an orderbook at a point in time
+book = client.get_orderbook(
+    "KXBTC-25FEB14-T98250",
+    timestamp=datetime(2025, 2, 14, 12, 0, tzinfo=timezone.utc),
+)
+for level in book.yes[:5]:
+    print(f"  YES {level.price}c  x{level.quantity}")
 
 # List available markets as a DataFrame
-markets = client.list_markets(limit=10)
+markets = client.list_markets()
 df = markets.to_df()
 print(df[["ticker", "title", "status"]])
 

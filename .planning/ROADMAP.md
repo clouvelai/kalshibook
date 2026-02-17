@@ -88,7 +88,10 @@ Plans:
   3. User can query settlements via `client.list_settlements()` with auto-pagination
   4. User can call `.to_df()` on any paginated result to get a pandas DataFrame with correctly typed columns
   5. pandas is optional -- `pip install kalshibook` works without pandas; `pip install kalshibook[pandas]` enables `.to_df()`
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 11-01-PLAN.md -- PageIterator class, DataFrame helper, .to_df() on response models, package exports
+- [ ] 11-02-PLAN.md -- Client endpoint methods (settlements + paginated) and comprehensive tests
 
 ### Phase 12: Documentation and PyPI Publishing
 **Goal**: Users can discover, install, and learn the SDK from PyPI and a hosted documentation site

@@ -66,5 +66,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: v1.1 roadmap created with 5 phases (8-12)
-Resume: Plan Phase 8 (SDK Scaffolding)
+Stopped at: Phase 8 context gathered
+Resume: Plan Phase 8 (SDK Scaffolding) — context ready at .planning/phases/08-sdk-scaffolding/08-CONTEXT.md

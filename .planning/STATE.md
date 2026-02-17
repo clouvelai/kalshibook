@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 11 - Pagination & DataFrame Support (v1.1 Python SDK)
+**Current focus:** Phase 12 - Documentation & PyPI Publishing (v1.1 Python SDK)
 
 ## Current Position
 
-Phase: 11 of 12 (Pagination & DataFrame Support) -- COMPLETE
-Plan: 2 of 2 in current phase (11-02 complete)
-Status: Phase 11 Complete
-Last activity: 2026-02-17 -- Plan 11-02 (Pagination Client Integration) complete
+Phase: 12 of 12 (Documentation & PyPI Publishing)
+Plan: 1 of 3 in current phase (12-01 complete)
+Status: Executing Phase 12
+Last activity: 2026-02-17 -- Plan 12-01 (Docs Infrastructure & Version Fix) complete
 
-Progress: [#############################.] 90% (11/12 phases, 27 plans complete)
+Progress: [#############################.] 93% (12/12 phases, 28 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27
+- Total plans completed: 28
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -38,9 +38,10 @@ Progress: [#############################.] 90% (11/12 phases, 27 plans complete)
 | 09 | 3 | 5min | 1.7min |
 | 10 | 2 | 3min | 1.5min |
 | 11 | 2 | 4min | 2min |
+| 12 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 2min, 1min, 2min, 2min
+- Last 5 plans: 2min, 1min, 2min, 2min, 2min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -63,7 +64,7 @@ v1.1 decisions:
 - parse_datetime normalizes Z suffix to +00:00 for Python 3.10 compatibility
 - Flat dataclass structures (no inheritance) for MarketDetail/EventDetail -- stdlib slots+inheritance broken
 - ResponseMeta.from_headers() uses -1 sentinel for missing credit headers (not 0, which is valid)
-- Local _VERSION constant in _http.py to avoid circular import (Phase 12 refactors to single source)
+- _version.py module as single version source replacing _VERSION constant in _http.py (resolved Phase 12)
 - Retry-After header honored when present on 429, exponential backoff with jitter as fallback
 - No client-side interval validation for get_candles -- server validates for forward-compatibility
 - _ensure_tz defensively handles naive datetimes for outbound serialization (mirrors _parsing.py pattern)
@@ -72,6 +73,7 @@ v1.1 decisions:
 - to_df() drains remaining pages via list(self) before converting -- ensures completeness even after partial iteration
 - Eager first-page fetch in paginated methods so errors surface at call time, not during iteration
 - Inner closure pattern for fetch_page captures pre-computed ISO timestamps outside the closure
+- mkdocs-material with gen-files/literate-nav recipe for auto-generated API reference from NumPy docstrings
 
 ### Pending Todos
 
@@ -86,5 +88,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 11-02-PLAN.md (Phase 11 complete)
-Resume: Continue with Phase 12 (Packaging & Documentation)
+Stopped at: Completed 12-01-PLAN.md
+Resume: Continue with Plan 12-02 (Hand-written docs content)

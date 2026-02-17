@@ -9,15 +9,22 @@ from typing import Any
 import httpx
 
 from kalshibook._http import HttpTransport
+from kalshibook._pagination import PageIterator
 from kalshibook.exceptions import AuthenticationError
 from kalshibook.models import (
     CandlesResponse,
+    DeltaRecord,
+    DeltasResponse,
     EventDetailResponse,
     EventsResponse,
     MarketDetailResponse,
     MarketsResponse,
     OrderbookResponse,
     ResponseMeta,
+    SettlementResponse,
+    SettlementsResponse,
+    TradeRecord,
+    TradesResponse,
 )
 
 
@@ -381,3 +388,258 @@ class KalshiBook:
         """Async version of :meth:`get_event`."""
         resp = await self._arequest("GET", f"/events/{event_ticker}")
         return self._parse_response(resp, EventDetailResponse)
+
+    # -- Settlements --
+
+    def list_settlements(
+        self,
+        *,
+        event_ticker: str | None = None,
+        result: str | None = None,
+    ) -> SettlementsResponse:
+        """List settlement results with optional filters.
+
+        Parameters
+        ----------
+        event_ticker : str, optional
+            Filter by parent event ticker.
+        result : str, optional
+            Filter by settlement result (e.g. ``"yes"``, ``"no"``).
+
+        Returns
+        -------
+        SettlementsResponse
+        """
+        params: dict[str, str] = {}
+        if event_ticker is not None:
+            params["event_ticker"] = event_ticker
+        if result is not None:
+            params["result"] = result
+        resp = self._request("GET", "/settlements", params=params or None)
+        return self._parse_response(resp, SettlementsResponse)
+
+    async def alist_settlements(
+        self,
+        *,
+        event_ticker: str | None = None,
+        result: str | None = None,
+    ) -> SettlementsResponse:
+        """Async version of :meth:`list_settlements`."""
+        params: dict[str, str] = {}
+        if event_ticker is not None:
+            params["event_ticker"] = event_ticker
+        if result is not None:
+            params["result"] = result
+        resp = await self._arequest("GET", "/settlements", params=params or None)
+        return self._parse_response(resp, SettlementsResponse)
+
+    def get_settlement(self, ticker: str) -> SettlementResponse:
+        """Get settlement result for a single market.
+
+        Parameters
+        ----------
+        ticker : str
+            Market ticker.
+
+        Returns
+        -------
+        SettlementResponse
+
+        Raises
+        ------
+        MarketNotFoundError
+            If the ticker does not exist or has no settlement.
+        """
+        resp = self._request("GET", f"/settlements/{ticker}")
+        return self._parse_response(resp, SettlementResponse)
+
+    async def aget_settlement(self, ticker: str) -> SettlementResponse:
+        """Async version of :meth:`get_settlement`."""
+        resp = await self._arequest("GET", f"/settlements/{ticker}")
+        return self._parse_response(resp, SettlementResponse)
+
+    # -- Deltas (paginated) --
+
+    def list_deltas(
+        self,
+        ticker: str,
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        limit: int = 100,
+    ) -> PageIterator[DeltaRecord]:
+        """Iterate orderbook deltas for *ticker* within a time range.
+
+        Returns a :class:`PageIterator` that transparently fetches subsequent
+        pages on demand.  The first page is fetched eagerly so errors surface
+        at call time rather than during iteration.
+
+        Parameters
+        ----------
+        ticker : str
+            Market ticker.
+        start_time : datetime
+            Beginning of the range (inclusive).  Naive datetimes assumed UTC.
+        end_time : datetime
+            End of the range (exclusive).  Naive datetimes assumed UTC.
+        limit : int, optional
+            Page size.  Default: 100.
+
+        Returns
+        -------
+        PageIterator[DeltaRecord]
+
+        Examples
+        --------
+        Iterate all deltas::
+
+            for delta in client.list_deltas("KXBTC-T50", start, end):
+                print(delta.price_cents, delta.delta_amount)
+
+        Convert to DataFrame::
+
+            df = client.list_deltas("KXBTC-T50", start, end).to_df()
+        """
+        st = self._ensure_tz(start_time).isoformat()
+        et = self._ensure_tz(end_time).isoformat()
+
+        def fetch_page(
+            cursor: str | None,
+        ) -> tuple[list[DeltaRecord], bool, str | None]:
+            body: dict[str, Any] = {
+                "market_ticker": ticker,
+                "start_time": st,
+                "end_time": et,
+                "limit": limit,
+            }
+            if cursor is not None:
+                body["cursor"] = cursor
+            resp = self._request("POST", "/deltas", json=body)
+            parsed = self._parse_response(resp, DeltasResponse)
+            return (parsed.data, parsed.has_more, parsed.next_cursor)
+
+        items, has_more, next_cursor = fetch_page(None)
+        return PageIterator(items, has_more, next_cursor, fetch_page=fetch_page)
+
+    async def alist_deltas(
+        self,
+        ticker: str,
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        limit: int = 100,
+    ) -> PageIterator[DeltaRecord]:
+        """Async version of :meth:`list_deltas`."""
+        st = self._ensure_tz(start_time).isoformat()
+        et = self._ensure_tz(end_time).isoformat()
+
+        async def afetch_page(
+            cursor: str | None,
+        ) -> tuple[list[DeltaRecord], bool, str | None]:
+            body: dict[str, Any] = {
+                "market_ticker": ticker,
+                "start_time": st,
+                "end_time": et,
+                "limit": limit,
+            }
+            if cursor is not None:
+                body["cursor"] = cursor
+            resp = await self._arequest("POST", "/deltas", json=body)
+            parsed = self._parse_response(resp, DeltasResponse)
+            return (parsed.data, parsed.has_more, parsed.next_cursor)
+
+        items, has_more, next_cursor = await afetch_page(None)
+        return PageIterator(items, has_more, next_cursor, afetch_page=afetch_page)
+
+    # -- Trades (paginated) --
+
+    def list_trades(
+        self,
+        ticker: str,
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        limit: int = 100,
+    ) -> PageIterator[TradeRecord]:
+        """Iterate trades for *ticker* within a time range.
+
+        Returns a :class:`PageIterator` that transparently fetches subsequent
+        pages on demand.  The first page is fetched eagerly so errors surface
+        at call time rather than during iteration.
+
+        Parameters
+        ----------
+        ticker : str
+            Market ticker.
+        start_time : datetime
+            Beginning of the range (inclusive).  Naive datetimes assumed UTC.
+        end_time : datetime
+            End of the range (exclusive).  Naive datetimes assumed UTC.
+        limit : int, optional
+            Page size.  Default: 100.
+
+        Returns
+        -------
+        PageIterator[TradeRecord]
+
+        Examples
+        --------
+        Iterate all trades::
+
+            for trade in client.list_trades("KXBTC-T50", start, end):
+                print(trade.yes_price, trade.taker_side)
+
+        Convert to DataFrame::
+
+            df = client.list_trades("KXBTC-T50", start, end).to_df()
+        """
+        st = self._ensure_tz(start_time).isoformat()
+        et = self._ensure_tz(end_time).isoformat()
+
+        def fetch_page(
+            cursor: str | None,
+        ) -> tuple[list[TradeRecord], bool, str | None]:
+            body: dict[str, Any] = {
+                "market_ticker": ticker,
+                "start_time": st,
+                "end_time": et,
+                "limit": limit,
+            }
+            if cursor is not None:
+                body["cursor"] = cursor
+            resp = self._request("POST", "/trades", json=body)
+            parsed = self._parse_response(resp, TradesResponse)
+            return (parsed.data, parsed.has_more, parsed.next_cursor)
+
+        items, has_more, next_cursor = fetch_page(None)
+        return PageIterator(items, has_more, next_cursor, fetch_page=fetch_page)
+
+    async def alist_trades(
+        self,
+        ticker: str,
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        limit: int = 100,
+    ) -> PageIterator[TradeRecord]:
+        """Async version of :meth:`list_trades`."""
+        st = self._ensure_tz(start_time).isoformat()
+        et = self._ensure_tz(end_time).isoformat()
+
+        async def afetch_page(
+            cursor: str | None,
+        ) -> tuple[list[TradeRecord], bool, str | None]:
+            body: dict[str, Any] = {
+                "market_ticker": ticker,
+                "start_time": st,
+                "end_time": et,
+                "limit": limit,
+            }
+            if cursor is not None:
+                body["cursor"] = cursor
+            resp = await self._arequest("POST", "/trades", json=body)
+            parsed = self._parse_response(resp, TradesResponse)
+            return (parsed.data, parsed.has_more, parsed.next_cursor)
+
+        items, has_more, next_cursor = await afetch_page(None)
+        return PageIterator(items, has_more, next_cursor, afetch_page=afetch_page)

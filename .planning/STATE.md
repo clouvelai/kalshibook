@@ -9,17 +9,17 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 
 ## Current Position
 
-Phase: 11 of 12 (Pagination & DataFrame Support)
-Plan: 1 of 2 in current phase (11-01 complete)
-Status: In Progress
-Last activity: 2026-02-17 -- Plan 11-01 (PageIterator & DataFrame Core) complete
+Phase: 11 of 12 (Pagination & DataFrame Support) -- COMPLETE
+Plan: 2 of 2 in current phase (11-02 complete)
+Status: Phase 11 Complete
+Last activity: 2026-02-17 -- Plan 11-02 (Pagination Client Integration) complete
 
-Progress: [############################..] 85% (10/12 phases, 26 plans complete)
+Progress: [#############################.] 90% (11/12 phases, 27 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26
+- Total plans completed: 27
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -37,7 +37,7 @@ Progress: [############################..] 85% (10/12 phases, 26 plans complete)
 | 08 | 1 | 2min | 2min |
 | 09 | 3 | 5min | 1.7min |
 | 10 | 2 | 3min | 1.5min |
-| 11 | 1 | 2min | 2min |
+| 11 | 2 | 4min | 2min |
 
 **Recent Trend:**
 - Last 5 plans: 2min, 2min, 1min, 2min, 2min
@@ -70,6 +70,8 @@ v1.1 decisions:
 - pytest-httpx match_params for query-parameterized endpoint URL matching (exact URL match fails with query strings)
 - PageIterator tracks all yielded items in _consumed list so to_df() always returns complete dataset
 - to_df() drains remaining pages via list(self) before converting -- ensures completeness even after partial iteration
+- Eager first-page fetch in paginated methods so errors surface at call time, not during iteration
+- Inner closure pattern for fetch_page captures pre-computed ISO timestamps outside the closure
 
 ### Pending Todos
 
@@ -84,5 +86,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 11-01-PLAN.md
-Resume: Continue with 11-02-PLAN.md (Pagination Client Integration)
+Stopped at: Completed 11-02-PLAN.md (Phase 11 complete)
+Resume: Continue with Phase 12 (Packaging & Documentation)

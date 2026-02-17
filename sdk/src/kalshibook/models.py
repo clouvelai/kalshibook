@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from kalshibook._parsing import parse_datetime
 
@@ -258,6 +259,15 @@ class MarketsResponse:
             meta=meta,
         )
 
+    def to_df(self) -> Any:
+        """Convert records to a pandas DataFrame.
+
+        Requires pandas: ``pip install kalshibook[pandas]``
+        """
+        from kalshibook._pagination import _records_to_df
+
+        return _records_to_df(self.data)
+
 
 @dataclass(slots=True, frozen=True)
 class MarketDetailResponse:
@@ -320,6 +330,15 @@ class CandlesResponse:
             meta=meta,
         )
 
+    def to_df(self) -> Any:
+        """Convert records to a pandas DataFrame.
+
+        Requires pandas: ``pip install kalshibook[pandas]``
+        """
+        from kalshibook._pagination import _records_to_df
+
+        return _records_to_df(self.data)
+
 
 # ---------------------------------------------------------------------------
 # Settlement models
@@ -377,6 +396,15 @@ class SettlementsResponse:
             data=[SettlementRecord.from_dict(s) for s in data.get("data", [])],
             meta=meta,
         )
+
+    def to_df(self) -> Any:
+        """Convert records to a pandas DataFrame.
+
+        Requires pandas: ``pip install kalshibook[pandas]``
+        """
+        from kalshibook._pagination import _records_to_df
+
+        return _records_to_df(self.data)
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +481,15 @@ class EventsResponse:
             data=[EventSummary.from_dict(e) for e in data.get("data", [])],
             meta=meta,
         )
+
+    def to_df(self) -> Any:
+        """Convert records to a pandas DataFrame.
+
+        Requires pandas: ``pip install kalshibook[pandas]``
+        """
+        from kalshibook._pagination import _records_to_df
+
+        return _records_to_df(self.data)
 
 
 @dataclass(slots=True, frozen=True)

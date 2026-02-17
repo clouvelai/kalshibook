@@ -1,5 +1,5 @@
 [project]
-name = "kalshibook"
+name = "kalshibook-server"
 version = "0.1.0"
 description = "L2 orderbook data collection pipeline for Kalshi prediction markets"
 readme = "README.md"
@@ -38,3 +38,6 @@ select = ["E", "F", "I", "N", "W"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.uv.workspace]
+members = ["sdk"]

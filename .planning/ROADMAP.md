@@ -136,7 +136,7 @@ Plans:
   1. Playground validates required timestamp field client-side before sending request (no raw 422 errors)
   2. No orphaned dead code remains (PaygToggle component removed, SeriesRecord/SeriesResponse resolved)
   3. REQUIREMENTS.md traceability is current (BKTS-01-04 added, STRM-01/02 moved to v2, Phase 6 coverage noted)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [ ] 07-01-PLAN.md -- Playground timestamp validation, dead code cleanup, REQUIREMENTS.md traceability update

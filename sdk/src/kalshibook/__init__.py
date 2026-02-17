@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
+from kalshibook._pagination import PageIterator
 from kalshibook.client import KalshiBook
 from kalshibook.exceptions import (
     AuthenticationError,
@@ -16,6 +17,7 @@ from kalshibook.exceptions import (
 
 __all__ = [
     "KalshiBook",
+    "PageIterator",
     "__version__",
     "KalshiBookError",
     "AuthenticationError",

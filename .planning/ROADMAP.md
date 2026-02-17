@@ -58,7 +58,11 @@ Plans:
   3. API errors map to specific exception types (AuthenticationError, RateLimitError, CreditsExhaustedError, MarketNotFoundError) that users can catch individually
   4. Every response object exposes credit usage metadata (credits_used, credits_remaining)
   5. The client works in both `sync=True` mode (for scripts/notebooks) and async mode (for event loop contexts)
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 09-01-PLAN.md — Exception hierarchy and datetime parsing utility
+- [ ] 09-02-PLAN.md — All response dataclass models with from_dict factories
+- [ ] 09-03-PLAN.md — HTTP transport (dual-mode, retry, error mapping) and KalshiBook client constructor
 
 ### Phase 10: Client Class and Data Endpoints
 **Goal**: Users can query every non-paginated KalshiBook endpoint through typed client methods and get back structured response objects
@@ -109,7 +113,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 6. API Playground | v1.0 | 3/3 | Complete | 2026-02-16 |
 | 7. v1 Cleanup & Polish | v1.0 | 1/1 | Complete | 2026-02-17 |
 | 8. SDK Scaffolding | v1.1 | 1/1 | Complete | 2026-02-17 |
-| 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/? | Not started | - |
+| 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/3 | Planned | - |
 | 10. Client Class and Data Endpoints | v1.1 | 0/? | Not started | - |
 | 11. Pagination and DataFrame Support | v1.1 | 0/? | Not started | - |
 | 12. Documentation and PyPI Publishing | v1.1 | 0/? | Not started | - |

@@ -102,7 +102,11 @@ Plans:
   2. API reference documentation is auto-generated from docstrings and covers all public methods
   3. `pip install kalshibook` installs the published package from PyPI
   4. The published package passes `mypy --strict` type checking in consumer code (py.typed works end-to-end)
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 12-01-PLAN.md -- Docs infrastructure (mkdocs-material, mkdocstrings, gen_ref_pages.py) and version single-source fix
+- [ ] 12-02-PLAN.md -- Hand-written docs content (Getting Started, Authentication, endpoint examples, README)
+- [ ] 12-03-PLAN.md -- Build verification, GitHub Actions CI/CD, PyPI publishing
 
 ## Progress
 

@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 8 of 12 (SDK Scaffolding)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-02-17 -- Roadmap created for v1.1 Python SDK milestone
+Plan: 1 of 1 in current phase (COMPLETE)
+Status: Phase 8 complete
+Last activity: 2026-02-17 -- Completed 08-01 SDK package scaffolding
 
-Progress: [####################..........] 65% (7/12 phases, 19/19 v1.0 plans complete)
+Progress: [######################........] 67% (8/12 phases, 20 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
+- Total plans completed: 20
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -34,9 +34,10 @@ Progress: [####################..........] 65% (7/12 phases, 19/19 v1.0 plans co
 | 05 | 5 | 12min | 2.4min |
 | 06 | 3 | 7min | 2.3min |
 | 07 | 1 | 3min | 3min |
+| 08 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 2min, 3min, 2min, 3min
+- Last 5 plans: 2min, 3min, 2min, 3min, 2min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -52,6 +53,9 @@ v1.1 decisions:
 - httpx + stdlib dataclasses (no Pydantic in SDK -- avoids version conflicts)
 - Single KalshiBook class with sync=True flag (not separate AsyncKalshiBook)
 - Replay abstractions (replay_orderbook, stream_trades) deferred to v1.2
+- Root project renamed to kalshibook-server to avoid uv workspace name collision
+- SDK uses uv_build backend with src layout for zero-config package discovery
+- httpx>=0.27 as sole runtime dependency (no upper bound); pandas>=2.0 as optional extra
 
 ### Pending Todos
 
@@ -66,5 +70,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Phase 8 context gathered
-Resume: Plan Phase 8 (SDK Scaffolding) — context ready at .planning/phases/08-sdk-scaffolding/08-CONTEXT.md
+Stopped at: Completed 08-01-PLAN.md (SDK Package Scaffolding)
+Resume: Phase 9 (SDK Client Models) -- SDK skeleton ready at sdk/

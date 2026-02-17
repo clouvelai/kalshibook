@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+from kalshibook._version import __version__
 
 from kalshibook._pagination import PageIterator
 from kalshibook.client import KalshiBook

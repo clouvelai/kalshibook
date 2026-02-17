@@ -25,6 +25,12 @@ dependencies = [
 [project.optional-dependencies]
 pandas = ["pandas>=2.0"]
 
+[project.urls]
+Documentation = "https://kalshibook.github.io/kalshibook/"
+Repository = "https://github.com/kalshibook/kalshibook"
+Issues = "https://github.com/kalshibook/kalshibook/issues"
+Changelog = "https://github.com/kalshibook/kalshibook/releases"
+
 [build-system]
 requires = ["uv_build>=0.10.3,<0.11.0"]
 build-backend = "uv_build"
@@ -36,6 +42,13 @@ dev = [
     "pytest-httpx>=0.35",
     "mypy>=1.10",
     "ruff>=0.15",
+]
+docs = [
+    "mkdocs-material>=9.7",
+    "mkdocstrings[python]>=1.0",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
+    "mkdocs-section-index>=0.3",
 ]
 
 [tool.ruff]

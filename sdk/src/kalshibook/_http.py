@@ -18,9 +18,7 @@ from kalshibook.exceptions import (
     ValidationError,
 )
 
-# Avoid circular import -- __init__.py imports client.py which imports _http.py.
-# Phase 12 (PyPI publishing) can refactor to a single source of truth.
-_VERSION = "0.1.0"
+from kalshibook._version import __version__
 
 # Maps API error.code strings to SDK exception classes.
 _ERROR_MAP: dict[str, type[KalshiBookError]] = {
@@ -90,7 +88,7 @@ class HttpTransport:
 
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": f"kalshibook-python/{_VERSION}",
+            "User-Agent": f"kalshibook-python/{__version__}",
             "Accept": "application/json",
         }
 

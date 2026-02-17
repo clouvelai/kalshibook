@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 10 - Client Class Data Endpoints (v1.1 Python SDK)
+**Current focus:** Phase 10 - Client Class Data Endpoints (v1.1 Python SDK) -- COMPLETE
 
 ## Current Position
 
 Phase: 10 of 12 (Client Class Data Endpoints)
-Plan: 1 of 2 in current phase (10-01 complete)
-Status: In Progress
-Last activity: 2026-02-17 -- Plan 10-01 (Client Endpoint Methods) complete
+Plan: 2 of 2 in current phase (10-02 complete -- phase done)
+Status: Phase Complete
+Last activity: 2026-02-17 -- Plan 10-02 (Endpoint Tests) complete
 
-Progress: [##########################....] 80% (9/12 phases, 24 plans complete)
+Progress: [############################..] 83% (10/12 phases, 25 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24
+- Total plans completed: 25
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -36,10 +36,10 @@ Progress: [##########################....] 80% (9/12 phases, 24 plans complete)
 | 07 | 1 | 3min | 3min |
 | 08 | 1 | 2min | 2min |
 | 09 | 3 | 5min | 1.7min |
-| 10 | 1 | 1min | 1min |
+| 10 | 2 | 3min | 1.5min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 1min, 2min, 2min, 1min
+- Last 5 plans: 1min, 2min, 2min, 1min, 2min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -66,6 +66,7 @@ v1.1 decisions:
 - Retry-After header honored when present on 429, exponential backoff with jitter as fallback
 - No client-side interval validation for get_candles -- server validates for forward-compatibility
 - _ensure_tz defensively handles naive datetimes for outbound serialization (mirrors _parsing.py pattern)
+- pytest-httpx match_params for query-parameterized endpoint URL matching (exact URL match fails with query strings)
 
 ### Pending Todos
 
@@ -80,5 +81,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 10-01-PLAN.md
-Resume: Continue with 10-02-PLAN.md (paginated endpoint methods)
+Stopped at: Completed 10-02-PLAN.md (Phase 10 complete)
+Resume: Continue with Phase 11 (SDK Testing)

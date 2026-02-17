@@ -70,5 +70,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 08-01-PLAN.md (SDK Package Scaffolding)
-Resume: Phase 9 (SDK Client Models) -- SDK skeleton ready at sdk/
+Stopped at: Phase 9 context gathered
+Resume: .planning/phases/09-models-exceptions-and-http-transport/09-CONTEXT.md

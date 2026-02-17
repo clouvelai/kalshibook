@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 6 COMPLETE -- API Playground (plan 3 of 3 done)
+**Current focus:** Phase 7 COMPLETE -- V1 Cleanup & Polish (plan 1 of 1 done)
 
 ## Current Position
 
-Phase: 6 of 6 (API Playground)
-Plan: 3 of 3 in current phase
-Status: 06-03 complete -- Response panel with JSON/Preview tabs and orderbook preview
-Last activity: 2026-02-16 - Completed 06-03: Response panel & orderbook preview
+Phase: 7 of 7 (V1 Cleanup & Polish)
+Plan: 1 of 1 in current phase
+Status: 07-01 complete -- Timestamp validation, dead code removal, requirements traceability
+Last activity: 2026-02-17 - Completed 07-01: V1 cleanup & polish
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: 3min
-- Total execution time: 0.76 hours
+- Total execution time: 0.81 hours
 
 **By Phase:**
 
@@ -32,9 +32,10 @@ Progress: [██████████] 100%
 | 04 | 4 | 11min | 2.75min |
 | 05 | 4 | 12min | 3min |
 | 06 | 3 | 7min | 2.3min |
+| 07 | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 3min, 2min, 2min
+- Last 5 plans: 3min, 3min, 2min, 2min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -107,6 +108,8 @@ Recent decisions affecting current work:
 - [06-03]: ResponsePanel uses three-state pattern (empty/loading/response) -- error responses are regular response objects with non-2xx status
 - [06-03]: OrderbookPreview uses runtime type guard to detect orderbook format and falls back gracefully
 - [06-03]: Status badge uses destructive variant for non-2xx, secondary for 2xx
+- [07-01]: Timestamp promoted to top-level visible field (not in accordion) matching Market Ticker pattern
+- [07-01]: requestError rendered below form inside left panel for visual proximity to form inputs
 
 ### Pending Todos
 
@@ -117,6 +120,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 6 added: API Playground
+- Phase 7 added: V1 Cleanup & Polish (gap closure from milestone audit)
 
 ### Blockers/Concerns
 
@@ -130,6 +134,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 06-03-PLAN.md (final plan of final phase)
-Resume file: .planning/phases/06-api-playground/06-03-SUMMARY.md
+Last session: 2026-02-17
+Stopped at: Completed 07-01-PLAN.md (final plan of phase 7 -- v1 cleanup complete)
+Resume file: .planning/phases/07-v1-cleanup-polish/07-01-SUMMARY.md

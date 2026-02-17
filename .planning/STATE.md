@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 9 of 12 (Models, Exceptions, and HTTP Transport)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-02-17 -- Phase 8 SDK Scaffolding complete
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-02-17 -- Plan 09-01 (Exceptions and Parsing) complete
 
-Progress: [######################........] 67% (8/12 phases, 20 plans complete)
+Progress: [######################........] 67% (8/12 phases, 21 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
+- Total plans completed: 21
 - Average duration: 3min
 - Total execution time: ~1.0 hours
 
@@ -35,9 +35,10 @@ Progress: [######################........] 67% (8/12 phases, 20 plans complete)
 | 06 | 3 | 7min | 2.3min |
 | 07 | 1 | 3min | 3min |
 | 08 | 1 | 2min | 2min |
+| 09 | 1 | 1min | 1min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 3min, 2min, 3min, 2min
+- Last 5 plans: 3min, 2min, 3min, 2min, 1min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -56,6 +57,8 @@ v1.1 decisions:
 - Root project renamed to kalshibook-server to avoid uv workspace name collision
 - SDK uses uv_build backend with src layout for zero-config package discovery
 - httpx>=0.27 as sole runtime dependency (no upper bound); pandas>=2.0 as optional extra
+- SDK exceptions use status_code/response_body attributes (distinct from server's code/status pattern)
+- parse_datetime normalizes Z suffix to +00:00 for Python 3.10 compatibility
 
 ### Pending Todos
 
@@ -70,5 +73,5 @@ v1.1 decisions:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Phase 9 context gathered
-Resume: .planning/phases/09-models-exceptions-and-http-transport/09-CONTEXT.md
+Stopped at: Completed 09-01-PLAN.md
+Resume: Execute 09-02-PLAN.md next

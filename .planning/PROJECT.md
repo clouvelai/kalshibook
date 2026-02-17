@@ -29,9 +29,15 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 
 ### Active
 
+- [ ] Python SDK with high-level backtesting abstractions (replay_orderbook, stream_trades)
+- [ ] SDK published to PyPI as installable package
+- [ ] SDK reference documentation (pdoc or similar)
+- [ ] Data discovery helpers in SDK (list available markets, coverage dates)
+
+### Future
+
 - [ ] Stream real-time orderbook updates to subscribers via websocket
 - [ ] Real-time streaming requires valid API key authentication on connect
-- [ ] Python SDK auto-generated from OpenAPI spec
 - [ ] TypeScript SDK auto-generated from OpenAPI spec
 - [ ] MCP server exposing KalshiBook endpoints as AI agent tools
 - [ ] Downloadable flat files (CSV/Parquet) for bulk backtesting
@@ -88,5 +94,15 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 | Two-step orderbook reconstruction | Snapshot + delta replay clearer than single CTE | ✓ Good — debuggable and correct |
 | Credit system as primary rate enforcement | SlowAPI backstop only, credits are real limiter | ✓ Good — simple and effective |
 
+## Current Milestone: v1.1 Python SDK
+
+**Goal:** Give users a first-class Python client for backtesting — install via pip, replay orderbooks, stream trades, discover available data.
+
+**Target features:**
+- Auto-generated Python SDK wrapping all REST endpoints
+- High-level backtesting abstractions (orderbook replay, trade streaming)
+- Data discovery helpers (available markets, coverage dates)
+- SDK reference docs
+
 ---
-*Last updated: 2026-02-17 after v1.0 milestone*
+*Last updated: 2026-02-17 after v1.1 milestone start*

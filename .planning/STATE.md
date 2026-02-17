@@ -5,15 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** v1.0 MVP shipped -- planning next milestone
+**Current focus:** v1.1 Python SDK -- defining requirements
 
 ## Current Position
 
-Milestone: v1.0 MVP COMPLETE
-Status: All 7 phases (18 plans) shipped and archived
-Last activity: 2026-02-17 - Completed v1.0 milestone
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-17 — Milestone v1.1 started
 
 ## Performance Metrics
 
@@ -52,5 +51,5 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed v1.0 milestone archival
-Resume: `/gsd:new-milestone` to start next milestone cycle
+Stopped at: Starting milestone v1.1 — defining requirements
+Resume: Continue new-milestone workflow

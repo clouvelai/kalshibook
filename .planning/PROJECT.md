@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A monetized data API that collects, stores, and serves L2 orderbook data from Kalshi prediction markets. Customers (algo traders, quants, and AI agents) query historical point-in-time orderbook state, stream real-time updates, and access raw deltas for backtesting and live trading strategies. Tavily-style API with free tier through enterprise plans.
+A monetized data API that collects, stores, and serves L2 orderbook data from Kalshi prediction markets. Customers (algo traders, quants, and AI agents) query historical point-in-time orderbook state, access trade/settlement/candle data for backtesting, and manage their accounts through a self-service dashboard. Tavily-style API with free tier through project plans.
 
 ## Core Value
 
@@ -12,34 +12,37 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 
 ### Validated
 
-<!-- Shipped and confirmed valuable. -->
-
-(None yet — ship to validate)
+- ✓ Collect L2 orderbook snapshots + deltas via Kalshi websocket API — v1.0
+- ✓ Auto-discover new markets via market/event lifecycle websocket — v1.0
+- ✓ Store all raw snapshots and deltas in Supabase with timestamps — v1.0
+- ✓ Reconstruct full orderbook state at any historical timestamp — v1.0
+- ✓ Serve reconstructed orderbook via REST API — v1.0
+- ✓ Serve raw delta streams for advanced users — v1.0
+- ✓ API key authentication with subscription tiers (free / PAYG / project) — v1.0
+- ✓ Stripe-powered billing and subscription management — v1.0
+- ✓ User dashboard for API key management, usage tracking, billing — v1.0
+- ✓ Agent-friendly API design (structured JSON, clean endpoints, documentation) — v1.0
+- ✓ Market metadata (event info, contract specs, settlement rules) — v1.0
+- ✓ Trade capture and history queryable via API — v1.0
+- ✓ Candlestick data at 1m/1h/1d intervals — v1.0
+- ✓ Interactive API playground — v1.0
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
-
-- [ ] Collect L2 orderbook snapshots + deltas via Kalshi websocket API
-- [ ] Auto-discover new markets via market/event lifecycle websocket
-- [ ] Store all raw snapshots and deltas in Supabase with timestamps
-- [ ] Reconstruct full orderbook state at any historical timestamp
-- [ ] Serve reconstructed orderbook via REST API
 - [ ] Stream real-time orderbook updates to subscribers via websocket
-- [ ] Serve raw delta streams for advanced users
-- [ ] API key authentication with subscription tiers (free / pay-as-you-go / project / enterprise)
-- [ ] Stripe-powered billing and subscription management
-- [ ] User dashboard for API key management, usage tracking, billing
-- [ ] Agent-friendly API design (structured JSON, clean endpoints, documentation)
-- [ ] Market metadata (event info, contract specs, settlement rules)
+- [ ] Real-time streaming requires valid API key authentication on connect
+- [ ] Python SDK auto-generated from OpenAPI spec
+- [ ] TypeScript SDK auto-generated from OpenAPI spec
+- [ ] MCP server exposing KalshiBook endpoints as AI agent tools
+- [ ] Downloadable flat files (CSV/Parquet) for bulk backtesting
 
 ### Out of Scope
 
-- Connection pooling / multi-WS redundancy — future milestone, single WS connection for MVP
-- Consensus + reconciliation across redundant listeners — future milestone
-- OHLCV-style aggregated candle data — may add later based on demand
-- Mobile app — web dashboard only
-- Trade execution API — read-only data, no trading
+- Trade execution / order placement — read-only data product, not a brokerage
+- Multi-exchange aggregation (Polymarket, Manifold) — deep on Kalshi first
+- GraphQL API — REST-only, better for agents, simpler to rate-limit
+- Mobile app — web dashboard + API only
+- Derived metrics (spread, mid-price, order imbalance) — users compute from raw data
 
 ## Context
 
@@ -54,13 +57,15 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - Real-time feeds for live strategy execution
 - Programmatic access (API-first, not dashboards)
 
-**Reference product**: Tavily (tavily.com) — clean API design, simple pricing tiers, agent-first positioning. KalshiBook should feel similarly natural for an AI agent to integrate with.
-
-**Existing codebase**: Python project with FastAPI/Starlette patterns, pytest test suite, modern tooling (pyproject.toml, uv). See `.planning/codebase/` for detailed mapping.
+**Current state (v1.0 shipped):**
+- Backend: Python/FastAPI, 6,346 LOC — 10 data endpoints, credit billing, Supabase Auth
+- Frontend: Next.js 15/TypeScript, 5,684 LOC — dashboard with key management, billing, playground
+- Infrastructure: Supabase (Postgres), Stripe, Railway (collector)
+- Data: daily-partitioned tables for snapshots, deltas, trades; settlements, events, series
 
 ## Constraints
 
-- **Datastore**: Supabase (managed Postgres) — leverage PostgREST, Realtime, Auth, RLS where possible
+- **Datastore**: Supabase (managed Postgres) — PostgREST for admin, custom FastAPI for customer-facing
 - **Billing**: Stripe for payments and subscription management
 - **Collector hosting**: Railway (long-running websocket process)
 - **Kalshi WS limit**: 1,000 market subscriptions per websocket connection (MVP: single connection)
@@ -70,12 +75,18 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Supabase as primary datastore | Managed Postgres + built-in API/Auth/Realtime reduces custom code | — Pending |
-| Stripe for billing | Industry standard, good API, subscription management built-in | — Pending |
-| Railway for collector | Needs long-running process, Railway handles persistent services well | — Pending |
-| Single WS connection for MVP | Simplifies architecture, covers liquid markets, pooling comes later | — Pending |
-| Tavily-style pricing model | Free tier for adoption, usage-based scaling, agent-friendly | — Pending |
-| Agent-first API design | Key differentiator — AI agents are a growing customer segment for market data | — Pending |
+| Supabase as primary datastore | Managed Postgres + built-in Auth reduces custom code | ✓ Good — Auth and Postgres work well, PostgREST unused for customer API |
+| Stripe for billing | Industry standard, good API, subscription management built-in | ✓ Good — Checkout, Portal, Webhooks, Metering all working |
+| Railway for collector | Needs long-running process, Railway handles persistent services | ✓ Good |
+| Single WS connection for MVP | Simplifies architecture, covers liquid markets | ✓ Good — pooling deferred to v2 |
+| Tavily-style pricing model | Free tier for adoption, usage-based scaling | ✓ Good — 3 tiers working |
+| Agent-first API design | AI agents are growing customer segment for market data | ✓ Good — llms.txt, structured errors |
+| Custom FastAPI over PostgREST | Reconstruction + credit metering need app logic | ✓ Good — 10 endpoints with custom business logic |
+| Custom WS server over Supabase Realtime | Python client unmaintained, 8KB NOTIFY limit | — Pending (v2 streaming) |
+| Native Postgres partitioning over TimescaleDB | TimescaleDB deprecated on Supabase PG17 | ✓ Good — daily partitions working |
+| httpx GoTrue client over supabase-py | websockets>=16 conflict, cleaner direct REST | ✓ Good — no dependency conflicts |
+| Two-step orderbook reconstruction | Snapshot + delta replay clearer than single CTE | ✓ Good — debuggable and correct |
+| Credit system as primary rate enforcement | SlowAPI backstop only, credits are real limiter | ✓ Good — simple and effective |
 
 ---
-*Last updated: 2026-02-13 after initialization*
+*Last updated: 2026-02-17 after v1.0 milestone*

@@ -1,561 +1,738 @@
-# Architecture Research
+# Architecture Research: Python SDK for KalshiBook API
 
-**Domain:** Market data collection + serving (L2 orderbook, prediction markets)
-**Researched:** 2026-02-13
-**Confidence:** HIGH (verified against Kalshi API docs, Supabase docs, production orderbook system patterns)
+**Domain:** Python SDK wrapping a financial data REST API with high-level backtesting abstractions
+**Researched:** 2026-02-17
+**Confidence:** HIGH (patterns verified against Polygon.io, Alpaca, Stripe, Azure SDK guidelines, and existing KalshiBook API source code)
 
-## Standard Architecture
-
-### System Overview
+## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     INGESTION LAYER (Railway)                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐     │
-│  │ WS Connector │  │  Orderbook   │  │   Market Discovery    │     │
-│  │ (Kalshi API) │→ │  Processor   │  │ (lifecycle channel)   │     │
-│  └──────┬───────┘  └──────┬───────┘  └───────────┬───────────┘     │
-│         │                 │                       │                 │
-│  ┌──────┴─────────────────┴───────────────────────┴──────────┐     │
-│  │                    Write Buffer / Batcher                  │     │
-│  └────────────────────────────┬──────────────────────────────┘     │
-├───────────────────────────────┼──────────────────────────────────────┤
-│                               ↓                                     │
-│                     STORAGE LAYER (Supabase)                        │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐      │
-│  │  Snapshots     │  │    Deltas      │  │    Markets       │      │
-│  │  (partitioned) │  │  (partitioned) │  │   (metadata)     │      │
-│  └────────────────┘  └────────────────┘  └──────────────────┘      │
-│                               │                                     │
-├───────────────────────────────┼──────────────────────────────────────┤
-│                               ↓                                     │
-│                     SERVING LAYER (Railway or Supabase)              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐      │
-│  │  REST API     │  │  WS Stream   │  │  PostgREST (raw)    │      │
-│  │  (FastAPI)    │  │  (FastAPI)   │  │  (Supabase auto)    │      │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘      │
-│                               │                                     │
-├───────────────────────────────┼──────────────────────────────────────┤
-│                               ↓                                     │
-│                     AUTH + BILLING LAYER                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐      │
-│  │ Supabase Auth │  │  API Keys   │  │  Stripe Billing      │      │
-│  │  (JWT/RLS)    │  │  (custom)   │  │  (subscriptions)     │      │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘      │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                     SDK PACKAGE (kalshibook)                              │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                    HIGH-LEVEL ABSTRACTIONS                          │  │
+│  │  ┌───────────────────┐  ┌───────────────────┐  ┌────────────────┐  │  │
+│  │  │  replay_orderbook │  │  stream_trades    │  │  discover      │  │  │
+│  │  │  (snapshot+delta  │  │  (auto-paginate   │  │  (markets,     │  │  │
+│  │  │   reconstruction) │  │   trade history)  │  │   events,      │  │  │
+│  │  │                   │  │                   │  │   coverage)    │  │  │
+│  │  └───────┬───────────┘  └───────┬───────────┘  └───────┬────────┘  │  │
+│  │          │                      │                      │           │  │
+│  ├──────────┴──────────────────────┴──────────────────────┴───────────┤  │
+│  │                                                                    │  │
+│  │                    LOW-LEVEL CLIENT LAYER                          │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐ │  │
+│  │  │  KalshiBook  │  │  Pagination  │  │  Error Mapping           │ │  │
+│  │  │  Client      │  │  Iterator    │  │  (HTTP -> exceptions)    │ │  │
+│  │  │  (httpx)     │  │  (async gen) │  │                          │ │  │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────────┘ │  │
+│  │         │                 │                      │                 │  │
+│  ├─────────┴─────────────────┴──────────────────────┴─────────────────┤  │
+│  │                                                                    │  │
+│  │                    MODELS LAYER                                    │  │
+│  │  ┌────────────────┐  ┌────────────────┐  ┌──────────────────────┐ │  │
+│  │  │  Request        │  │  Response       │  │  Domain (Orderbook, │ │  │
+│  │  │  dataclasses    │  │  dataclasses    │  │  Delta, Trade, etc) │ │  │
+│  │  └────────────────┘  └────────────────┘  └──────────────────────┘ │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                     │
+│                               httpx (HTTP)                               │
+│                                    │                                     │
+└────────────────────────────────────┼─────────────────────────────────────┘
+                                     │
+                                     ↓
+┌────────────────────────────────────────────────────────────────────────────┐
+│                     KALSHIBOOK API (existing)                              │
+│  POST /orderbook  POST /deltas  POST /trades  GET /markets  GET /candles  │
+│  GET /events  GET /settlements  GET /markets/{ticker}                      │
+│  Auth: Authorization: Bearer kb-...   Errors: {"error": {...}, "req_id"}  │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| WS Connector | Authenticate to Kalshi, maintain persistent websocket, handle reconnection with exponential backoff | Python `websockets` library + asyncio, RSA-PSS auth headers |
-| Orderbook Processor | Parse snapshot/delta messages, validate sequence numbers, detect gaps, maintain in-memory state for integrity checks | Pure Python, dataclass-based orderbook model |
-| Market Discovery | Subscribe to `market_lifecycle_v2` channel, detect new markets, trigger orderbook subscriptions | Runs on same WS connection, no ticker filter needed |
-| Write Buffer | Batch incoming deltas, flush to Supabase on interval or batch-size threshold | asyncio queue, 500-1000 row batches, ~1-5 second flush |
-| Snapshots Table | Store complete orderbook state at subscription time and periodic intervals | PostgreSQL with range partitioning by timestamp |
-| Deltas Table | Store every individual orderbook delta with sequence numbers | PostgreSQL with range partitioning by timestamp, high write volume |
-| Markets Table | Market metadata: ticker, title, event, status, settlement info | Standard PostgreSQL table, updated from lifecycle events |
-| REST API | Serve reconstructed orderbook state at any timestamp, paginated delta queries | FastAPI with Pydantic models, query Supabase via service role |
-| WS Stream | Stream real-time orderbook updates to subscribed clients | FastAPI WebSocket endpoints, fan-out from internal state |
-| PostgREST | Auto-generated REST API for raw table access (advanced users) | Supabase built-in, RLS policies for access control |
-| API Keys | Per-customer API keys with tier-based rate limits | Custom table in Supabase, middleware validation |
-| Stripe Billing | Subscription management, usage tracking, plan enforcement | Stripe SDK, webhook handlers |
+| Component | Responsibility | Implementation |
+|-----------|----------------|----------------|
+| KalshiBookClient | Single entry point: auth, HTTP transport, method dispatch | httpx.AsyncClient with connection pooling |
+| Pagination Iterator | Auto-paginate cursor-based endpoints transparently | `async for` generator yielding individual records |
+| Error Mapping | Map HTTP status codes + error.code to typed exceptions | Exception hierarchy mirroring server's KalshiBookError tree |
+| Request Models | Type-safe request construction with defaults | Python dataclasses (not Pydantic -- SDK should be lightweight) |
+| Response Models | Structured response parsing with attribute access | Python dataclasses with `from_dict()` class methods |
+| Domain Models | Orderbook, OrderbookLevel for reconstruction state | Dataclasses with `apply_delta()` mutation methods |
+| replay_orderbook | Fetch snapshot + auto-paginate deltas, reconstruct evolving state | Async generator yielding (timestamp, Orderbook) tuples |
+| stream_trades | Auto-paginate trade history for a time range | Async generator yielding Trade records |
+| discover | List markets, events, coverage dates | Sync convenience wrappers over list endpoints |
+
+## Repository Strategy: Monorepo with uv Workspace
+
+**Decision: Keep the SDK in the same repository as the API, using uv workspaces.**
+
+The project already uses `uv` for package management. uv workspaces (inspired by Cargo workspaces) allow multiple Python packages in a single repository with a shared lockfile.
+
+### Why Monorepo
+
+1. **Atomic changes:** API model changes + SDK model updates in one PR. When `OrderbookResponse` adds a field on the server, the SDK model updates in the same commit.
+2. **Test against real API:** SDK integration tests can spin up the FastAPI app directly (import `src.api.main:app`) without deploying anywhere.
+3. **Shared lockfile:** uv workspace creates one `uv.lock` for the whole repo, preventing dependency conflicts between API and SDK.
+4. **Already using uv:** No new tooling to learn. The project's existing `pyproject.toml` and `uv.lock` extend naturally.
+5. **Separate publishing:** SDK publishes to PyPI independently. Users install `pip install kalshibook` without the server code.
+
+### Why NOT Separate Repo
+
+- Two-repo coordination overhead (SDK lags behind API changes)
+- Can't run SDK integration tests against the API without deploying a staging environment
+- Model duplication with no enforcement mechanism to keep them in sync
+- For a solo developer / small team, the coordination tax is high and the benefits (independent CI, independent versioning) don't outweigh the cost
+
+### uv Workspace Configuration
+
+Root `pyproject.toml` adds:
+```toml
+[tool.uv.workspace]
+members = ["sdk"]
+```
+
+SDK lives at `sdk/` with its own `pyproject.toml`:
+```toml
+[project]
+name = "kalshibook"
+version = "0.1.0"
+description = "Python SDK for KalshiBook L2 orderbook data API"
+requires-python = ">=3.10"
+dependencies = ["httpx>=0.27"]
+
+[project.optional-dependencies]
+pandas = ["pandas>=2.0"]
+```
 
 ## Recommended Project Structure
 
 ```
-src/
-├── collector/              # Ingestion layer (runs on Railway as persistent service)
-│   ├── __init__.py
-│   ├── main.py             # Entry point, orchestrates connection + processing
-│   ├── connection.py       # WS connection management, auth, reconnection
-│   ├── processor.py        # Snapshot/delta parsing, sequence validation
-│   ├── discovery.py        # Market lifecycle monitoring, subscription management
-│   ├── writer.py           # Batched writes to Supabase
-│   └── models.py           # Internal data models (OrderbookSnapshot, Delta, etc.)
-├── api/                    # Serving layer (runs on Railway or serverless)
-│   ├── __init__.py
-│   ├── main.py             # FastAPI app entry point
-│   ├── routes/
-│   │   ├── orderbook.py    # GET /orderbook/{ticker}?at=timestamp
-│   │   ├── deltas.py       # GET /deltas/{ticker}?from=&to=
-│   │   ├── markets.py      # GET /markets, GET /markets/{ticker}
-│   │   └── stream.py       # WS /stream/{ticker} (real-time)
-│   ├── middleware/
-│   │   ├── auth.py         # API key validation + rate limiting
-│   │   └── usage.py        # Usage tracking for billing
-│   ├── services/
-│   │   ├── reconstruction.py  # Point-in-time orderbook reconstruction
-│   │   └── supabase.py     # Supabase client wrapper
-│   └── models.py           # API response models (Pydantic)
-├── shared/                 # Code shared between collector and API
-│   ├── __init__.py
-│   ├── config.py           # Environment config, Supabase connection
-│   ├── orderbook.py        # Orderbook data structures + reconstruction logic
-│   └── kalshi_types.py     # Kalshi message type definitions
-├── migrations/             # Supabase SQL migrations
-│   ├── 001_markets.sql
-│   ├── 002_snapshots.sql
-│   ├── 003_deltas.sql
-│   ├── 004_api_keys.sql
-│   └── 005_rls_policies.sql
-└── tests/
-    ├── collector/
-    ├── api/
-    └── shared/
+kalshibook/                          # Repository root (existing)
+├── pyproject.toml                   # Server app (existing, adds [tool.uv.workspace])
+├── uv.lock                         # Shared lockfile (existing)
+├── src/                             # Server code (existing, unchanged)
+│   ├── api/
+│   ├── collector/
+│   └── shared/
+├── sdk/                             # NEW — SDK package
+│   ├── pyproject.toml               # SDK-specific deps and metadata
+│   ├── src/
+│   │   └── kalshibook/              # Import: from kalshibook import KalshiBook
+│   │       ├── __init__.py          # Public API: KalshiBook, exceptions, models
+│   │       ├── client.py            # KalshiBook class (single client, all methods)
+│   │       ├── models.py            # All request/response/domain dataclasses
+│   │       ├── exceptions.py        # Exception hierarchy
+│   │       ├── _pagination.py       # Auto-pagination iterator (private)
+│   │       ├── _http.py             # HTTP transport layer (private)
+│   │       └── replay.py            # High-level: replay_orderbook, stream_trades
+│   ├── tests/
+│   │   ├── test_client.py           # Unit tests (mocked HTTP)
+│   │   ├── test_models.py           # Model serialization/deserialization
+│   │   ├── test_pagination.py       # Pagination iterator behavior
+│   │   ├── test_replay.py           # Replay abstraction tests
+│   │   └── test_integration.py      # Integration tests against real API
+│   └── examples/
+│       ├── quickstart.py            # Basic usage
+│       ├── replay_orderbook.py      # Orderbook replay example
+│       └── backtest_strategy.py     # Full backtesting example
+├── tests/                           # Server tests (existing)
+└── dashboard/                       # Next.js dashboard (existing)
 ```
 
 ### Structure Rationale
 
-- **collector/:** Separate deployable unit. Runs as a long-lived process on Railway. Has no HTTP concerns. Owns the write path.
-- **api/:** Separate deployable unit. Runs as a web service. Owns the read path. Can scale independently of collector.
-- **shared/:** Prevents duplication of orderbook reconstruction logic and Kalshi type definitions between collector and API.
-- **migrations/:** SQL files that define the Supabase schema. Managed via `supabase db push` or Supabase migrations system.
+- **Flat module layout (not nested packages):** The SDK has ~10 endpoints and ~15 models. A flat structure (`kalshibook/client.py`, not `kalshibook/resources/orderbook/client.py`) is appropriate. Polygon.io uses flat structure for a similarly-scoped SDK. Nested packages make sense for huge APIs (Stripe, Azure) but add import complexity for small APIs.
+- **Single `models.py`:** All dataclasses in one file. The API has ~15 response models and ~5 request models -- this fits comfortably in one file (~300 lines). Split only when it exceeds ~500 lines.
+- **Private modules with underscore prefix:** `_pagination.py` and `_http.py` are implementation details. Users import from `kalshibook`, not from `kalshibook._http`.
+- **`replay.py` as separate module:** The high-level abstractions (`replay_orderbook`, `stream_trades`) are distinct from the low-level client methods. They compose multiple client calls and contain domain logic (orderbook reconstruction). Separating them keeps `client.py` focused on 1:1 endpoint mapping.
+- **`sdk/` directory at repo root:** Clean separation from server code. uv workspace member. Published to PyPI independently. Server code never imports from SDK; SDK never imports from server.
 
 ## Architectural Patterns
 
-### Pattern 1: Snapshot + Delta Event Sourcing
+### Pattern 1: Single Client Class (Not Resource-Based)
 
-**What:** Store raw snapshots and deltas as immutable events. Reconstruct orderbook state at any point in time by replaying deltas forward from the nearest prior snapshot.
+**What:** One `KalshiBook` class with all methods, not separate `client.orderbook.get()` resource namespaces.
 
-**When to use:** Always. This is the core data model. Kalshi's API provides exactly this: an initial `orderbook_snapshot` on subscribe, followed by `orderbook_delta` messages. Store both verbatim.
+**When to use:** APIs with fewer than 20 endpoints. KalshiBook has 10 data endpoints.
+
+**Why this over resource-based:** Resource-based clients (like `stripe.customers.create()`) make sense when you have hundreds of endpoints grouped into dozens of resources. For 10 endpoints, a single class gives simpler autocomplete, fewer imports, and a shallower learning curve.
 
 **Trade-offs:**
-- Pro: Complete audit trail. Can reconstruct any historical state. Matches source data model exactly.
-- Pro: Write path is simple (append-only).
-- Con: Read path requires reconstruction (snapshot + replay deltas). Mitigated by periodic snapshots.
-- Con: Storage grows linearly with market activity. Mitigated by partitioning + compression.
+- Pro: `client.get_orderbook()` is more discoverable than `client.orderbook.get()`
+- Pro: No circular import issues between resource classes
+- Pro: Simpler to maintain -- one file, one class
+- Con: Class grows large if many endpoints are added (solve later by extracting mixins)
 
 **Example:**
 ```python
-# Reconstruction: find nearest snapshot, apply deltas
-async def reconstruct_orderbook(ticker: str, at: datetime) -> Orderbook:
-    # 1. Find the most recent snapshot before 'at'
-    snapshot = await db.snapshots.select("*").eq(
-        "market_ticker", ticker
-    ).lte("captured_at", at.isoformat()).order(
-        "captured_at", desc=True
-    ).limit(1).execute()
+from kalshibook import KalshiBook
 
-    # 2. Get all deltas between snapshot and target time
-    deltas = await db.deltas.select("*").eq(
-        "market_ticker", ticker
-    ).gt("ts", snapshot.captured_at.isoformat()).lte(
-        "ts", at.isoformat()
-    ).order("seq", asc=True).execute()
+client = KalshiBook(api_key="kb-...")
 
-    # 3. Apply deltas to snapshot
-    book = Orderbook.from_snapshot(snapshot)
-    for delta in deltas:
-        book.apply_delta(delta)
-    return book
+# Every endpoint is a direct method on the client
+orderbook = await client.get_orderbook("TICKER-ABC", timestamp="2026-02-15T12:00:00Z")
+markets = await client.list_markets()
+trades = client.list_trades("TICKER-ABC", start_time=..., end_time=...)  # returns async iterator
+
+# High-level abstractions are also methods on the client
+async for ts, book in client.replay_orderbook("TICKER-ABC", start=..., end=...):
+    print(f"{ts}: best_yes={book.best_yes}, best_no={book.best_no}")
 ```
 
-### Pattern 2: Periodic Snapshot Materialization
+### Pattern 2: Async-First with Sync Wrapper
 
-**What:** Every N minutes (e.g., 5 min), capture and store a full snapshot of each active orderbook's state. This bounds the number of deltas that must be replayed for any reconstruction query.
+**What:** All methods are `async def` by default. Provide a thin sync wrapper for users who don't want `asyncio`.
 
-**When to use:** Once delta volume makes reconstruction slow (likely from the start -- a market may generate hundreds of deltas per minute during active trading).
+**When to use:** Always for modern Python SDKs that make HTTP calls.
 
-**Trade-offs:**
-- Pro: Bounds reconstruction time to max N minutes of delta replay.
-- Pro: Snapshots are self-contained -- useful for quick "what did the book look like at this time?" queries.
-- Con: Additional storage. Mitigated by choosing interval based on activity level.
-- Con: Snapshot must be taken from known-good in-memory state (the collector already maintains this).
-
-### Pattern 3: Batched Write Pipeline
-
-**What:** Buffer incoming deltas in-memory and flush to Supabase in batches (500-1000 rows per insert) on a timer (1-5 seconds) or when the buffer reaches a size threshold.
-
-**When to use:** Always. Individual row inserts via the Supabase REST API are too slow for high-frequency delta streams. Batch inserts provide 10-100x throughput improvement.
+**Why async-first:** The primary users (algo traders, quants) are building async trading systems. Orderbook replay iterates through thousands of paginated results -- async is dramatically more efficient here. httpx supports both sync and async natively.
 
 **Trade-offs:**
-- Pro: Dramatically reduces database round-trips and connection overhead.
-- Pro: Amortizes network latency across many rows.
-- Con: Up to N seconds of data loss on crash. Acceptable for MVP (data can be re-collected from the next snapshot).
-- Con: Adds buffering complexity.
+- Pro: First-class async support for the primary use case
+- Pro: httpx provides both sync and async clients, so one HTTP layer serves both
+- Pro: Pagination and replay naturally express as async generators
+- Con: Users unfamiliar with asyncio need to wrap in `asyncio.run()` or use sync client
 
 **Example:**
 ```python
-class WriteBuffer:
-    def __init__(self, supabase, flush_interval=2.0, max_batch=500):
-        self.buffer: list[dict] = []
-        self.supabase = supabase
-        self.flush_interval = flush_interval
-        self.max_batch = max_batch
+# Async (primary, recommended for replay/pagination)
+import asyncio
+from kalshibook import KalshiBook
 
-    async def add(self, row: dict):
-        self.buffer.append(row)
-        if len(self.buffer) >= self.max_batch:
-            await self.flush()
+async def main():
+    async with KalshiBook(api_key="kb-...") as client:
+        orderbook = await client.get_orderbook("TICKER", timestamp="...")
 
-    async def flush(self):
-        if not self.buffer:
-            return
-        batch, self.buffer = self.buffer[:self.max_batch], self.buffer[self.max_batch:]
-        await self.supabase.table("deltas").insert(batch).execute()
+asyncio.run(main())
 
-    async def run_timer(self):
-        while True:
-            await asyncio.sleep(self.flush_interval)
-            await self.flush()
+# Sync (convenience, wraps async internally)
+from kalshibook import KalshiBook
+
+client = KalshiBook(api_key="kb-...", sync=True)
+orderbook = client.get_orderbook("TICKER", timestamp="...")
+```
+
+**Implementation:** The sync wrapper uses `httpx.Client` (sync) instead of `httpx.AsyncClient`. Detected at init time via `sync=True` flag. Internal methods check `self._sync` and dispatch accordingly. This avoids the `asyncio.run()` wrapper pattern which fails inside existing event loops.
+
+### Pattern 3: Auto-Paginating Async Generator
+
+**What:** Cursor-based endpoints return async generators that automatically fetch next pages as the user iterates.
+
+**When to use:** All paginated endpoints (`/deltas`, `/trades`).
+
+**Why generator, not list:** Delta queries can return millions of records. Loading all into memory defeats the purpose. An async generator fetches one page at a time, yielding individual records. The user sees a simple `async for` loop; the SDK handles cursor management internally.
+
+**Trade-offs:**
+- Pro: Constant memory usage regardless of result set size
+- Pro: Clean API -- user writes `async for delta in client.list_deltas(...):`
+- Pro: Can stop early without fetching remaining pages
+- Con: Cannot `len()` the result or index into it (use `list()` to collect if needed)
+
+**Example:**
+```python
+# Internal implementation
+async def _auto_paginate(self, endpoint, request_data, record_cls):
+    """Async generator that auto-paginates cursor-based endpoints."""
+    cursor = None
+    while True:
+        if cursor:
+            request_data["cursor"] = cursor
+        response = await self._post(endpoint, request_data)
+        for item in response["data"]:
+            yield record_cls.from_dict(item)
+        if not response.get("has_more"):
+            break
+        cursor = response["next_cursor"]
+
+# User-facing
+async for delta in client.list_deltas("TICKER", start_time=..., end_time=...):
+    print(f"{delta.ts}: {delta.side} {delta.price_cents} x {delta.delta_amount}")
+
+# Collect all if needed
+all_deltas = [d async for d in client.list_deltas("TICKER", start_time=..., end_time=...)]
+```
+
+### Pattern 4: Exception Hierarchy Mirroring Server Errors
+
+**What:** SDK exceptions map 1:1 to the server's error codes. The SDK inspects the `error.code` field in the JSON response and raises the corresponding typed exception.
+
+**When to use:** Always. The server already returns structured errors with `code`, `message`, `status`.
+
+**Trade-offs:**
+- Pro: Users can catch specific errors: `except MarketNotFoundError`
+- Pro: Exception carries the original error code, message, and request_id
+- Pro: Mirrors the server's error taxonomy -- no translation layer to maintain
+- Con: Adding new server error codes requires SDK update (acceptable since both are in monorepo)
+
+**Example:**
+```python
+# SDK exception hierarchy
+class KalshiBookError(Exception):
+    """Base for all KalshiBook API errors."""
+    def __init__(self, code: str, message: str, status: int, request_id: str):
+        self.code = code
+        self.message = message
+        self.status = status
+        self.request_id = request_id
+        super().__init__(f"{code}: {message}")
+
+class AuthenticationError(KalshiBookError): ...     # invalid_api_key (401)
+class RateLimitError(KalshiBookError): ...           # rate_limit_exceeded (429)
+class CreditsExhaustedError(KalshiBookError): ...    # credits_exhausted (429)
+class MarketNotFoundError(KalshiBookError): ...      # market_not_found (404)
+class EventNotFoundError(KalshiBookError): ...       # event_not_found (404)
+class NoDataError(KalshiBookError): ...              # no_data_available (404)
+class ValidationError(KalshiBookError): ...          # validation_error (422)
+
+# Mapping (in _http.py)
+_ERROR_MAP = {
+    "invalid_api_key": AuthenticationError,
+    "rate_limit_exceeded": RateLimitError,
+    "credits_exhausted": CreditsExhaustedError,
+    "market_not_found": MarketNotFoundError,
+    "event_not_found": EventNotFoundError,
+    "no_data_available": NoDataError,
+    "validation_error": ValidationError,
+}
+
+def _raise_for_error(response_json, status_code):
+    if "error" in response_json:
+        err = response_json["error"]
+        exc_cls = _ERROR_MAP.get(err["code"], KalshiBookError)
+        raise exc_cls(
+            code=err["code"],
+            message=err["message"],
+            status=err["status"],
+            request_id=response_json.get("request_id", ""),
+        )
 ```
 
 ## Data Flow
 
-### Ingestion Flow (Kalshi WS -> Supabase)
+### Orderbook Replay Data Flow (Key Abstraction)
+
+This is the most important data flow in the SDK. `replay_orderbook()` is the primary reason users install the SDK instead of calling the API directly.
 
 ```
-Kalshi WS API (wss://api.elections.kalshi.com/trade-api/ws/v2)
+client.replay_orderbook("TICKER", start="2026-02-15T10:00", end="2026-02-15T11:00")
     │
-    │ RSA-PSS auth headers on handshake
-    │
-    ├─ Subscribe: {"cmd": "subscribe", "params": {"channels": ["orderbook_delta"],
-    │              "market_tickers": ["TICKER1", "TICKER2", ...]}}
-    │
-    ├─ Subscribe: {"cmd": "subscribe", "params": {"channels": ["market_lifecycle_v2"]}}
-    │  (no ticker filter -- receives ALL market lifecycle events)
-    │
+    │ Step 1: Fetch initial snapshot
     ↓
-[WS Connector] ─── raw JSON messages ───→ [Orderbook Processor]
-    │                                           │
-    │ heartbeat/ping-pong                       ├─ orderbook_snapshot → validate → buffer
-    │ reconnect on drop                         ├─ orderbook_delta → validate seq → buffer
-    │ re-auth every 30 min                      └─ market_lifecycle → update markets table
-    │                                                    │
-    ↓                                                    ↓
-[Reconnection Manager]                          [Write Buffer]
-    │                                                    │
-    │ exponential backoff                                │ batch: 500-1000 rows
-    │ 1s, 2s, 4s... + jitter                            │ flush: every 2-5 seconds
-    │ re-subscribe all tickers                           │
-    │ request fresh snapshots                            ↓
-    │                                           [Supabase PostgreSQL]
-    ↓                                               ├─ snapshots table
-[Sequence Gap Detector]                             ├─ deltas table
-    │                                               └─ markets table
-    │ if seq gap detected:
-    │   1. log warning
-    │   2. re-subscribe market (triggers fresh snapshot)
-    │   3. mark gap in metadata
-```
-
-### Serving Flow (Customer API)
-
-```
-Customer Request (REST or WebSocket)
+POST /orderbook  {"market_ticker": "TICKER", "timestamp": "2026-02-15T10:00:00Z"}
     │
-    │ API Key in header: X-API-Key: kbook_live_abc123...
-    │
+    │ Response: OrderbookResponse with yes/no levels, snapshot_basis
     ↓
-[API Key Middleware]
+Build initial Orderbook state from yes/no levels
     │
-    ├─ Validate key exists + is active
-    ├─ Check rate limit (tier-based)
-    ├─ Track usage for billing
+    │ yield (start_timestamp, initial_orderbook)    ← user gets first state
     │
+    │ Step 2: Auto-paginate deltas from snapshot_basis to end
     ↓
-[FastAPI Router]
+POST /deltas  {"market_ticker": "TICKER", "start_time": "2026-02-15T10:00:00Z",
+               "end_time": "2026-02-15T11:00:00Z", "limit": 1000}
     │
-    ├─ GET /v1/orderbook/{ticker}?at={timestamp}
-    │       ↓
-    │   [Reconstruction Service]
-    │       ├─ Find nearest snapshot ≤ timestamp
-    │       ├─ Fetch deltas between snapshot and timestamp
-    │       ├─ Apply deltas to build point-in-time state
-    │       └─ Return full orderbook (bids + asks with quantities)
+    │ Page 1: 1000 deltas + next_cursor + has_more=true
+    ↓
+For each delta in page:
+    │ Apply to in-memory Orderbook: book.apply_delta(delta)
+    │ yield (delta.ts, orderbook_copy)              ← user gets evolved state
     │
-    ├─ GET /v1/deltas/{ticker}?from={ts}&to={ts}&limit=1000
-    │       ↓
-    │   [Direct query] → Supabase deltas table (paginated)
+    │ If has_more, fetch next page with cursor
+    ↓
+POST /deltas  {"market_ticker": "TICKER", ..., "cursor": "<next_cursor>"}
     │
-    ├─ GET /v1/markets
-    │       ↓
-    │   [Direct query] → Supabase markets table
+    │ Page 2: 1000 deltas + next_cursor + has_more=true
+    ↓
+    ...repeat until has_more=false...
     │
-    └─ WS /v1/stream/{ticker}
-            ↓
-        [Stream Manager]
-            ├─ Authenticate on handshake
-            ├─ Subscribe to Supabase Realtime (deltas table changes)
-            │   OR fan-out from collector's internal state
-            └─ Push delta JSON to client on each update
+    │ Generator exhausted — replay complete
+    ↓
+Done
 ```
 
-### Key Data Flows
+### Key Design Decisions in Replay Flow
 
-1. **Snapshot ingestion:** Kalshi WS → `orderbook_snapshot` message → parse all yes/no levels → store as single row in `snapshots` table with JSONB levels + metadata.
-2. **Delta ingestion:** Kalshi WS → `orderbook_delta` message → validate `seq` is `prev_seq + 1` → buffer → batch insert into `deltas` table.
-3. **Market discovery:** Kalshi WS → `market_lifecycle_v2` → detect `"created"` event → upsert `markets` table → subscribe to `orderbook_delta` for new ticker.
-4. **Point-in-time reconstruction:** API request → find nearest snapshot → query deltas in sequence range → apply deltas → return reconstructed book.
-5. **Real-time streaming:** Supabase Realtime listens to `deltas` inserts → pushes to connected clients via WebSocket (or: API server subscribes to Supabase Realtime internally, fans out to customer WS connections).
+1. **Yield on every delta, not every N deltas:** Users building backtesting systems need every state transition. If they want sampling, they skip yields themselves.
 
-## Supabase Schema Design
+2. **Yield copies vs references:** Yield a shallow copy of the orderbook on each delta. If we yield the same mutable object, users who store references see stale data. A shallow copy of `dict[int, int]` for yes/no books is cheap (~50-100 entries max for Kalshi binary markets).
 
-### Critical Decision: TimescaleDB is NOT Available
+3. **Use `/orderbook` for initial state, not manual snapshot+delta:** The API's `/orderbook` endpoint already does snapshot + delta reconstruction server-side. The SDK leverages this for the initial state, then pages through `/deltas` for subsequent updates. This avoids reimplementing reconstruction logic in the SDK.
 
-**Finding (HIGH confidence):** TimescaleDB is deprecated on Supabase for PostgreSQL 17 projects. The project's `supabase/config.toml` uses `major_version = 17`. TimescaleDB will NOT be available. Use native PostgreSQL range partitioning instead.
+4. **Credit cost awareness:** Each `/orderbook` call costs 5 credits, each `/deltas` page costs 2 credits. A 1-hour replay with 10K deltas = 5 + (10 pages * 2) = 25 credits. The SDK should document credit cost per operation.
 
-Source: [Supabase TimescaleDB docs](https://supabase.com/docs/guides/database/extensions/timescaledb) -- "deprecated for Postgres 17 projects."
+### Single API Call Data Flow
 
-### Recommended Schema
-
-```sql
--- Markets metadata (low volume, simple table)
-CREATE TABLE markets (
-    ticker TEXT PRIMARY KEY,
-    market_id UUID NOT NULL,
-    title TEXT,
-    event_ticker TEXT,
-    status TEXT NOT NULL DEFAULT 'active',  -- active, closed, settled
-    category TEXT,
-    rules TEXT,
-    strike_price NUMERIC,
-    discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_updated TIMESTAMPTZ NOT NULL DEFAULT now(),
-    metadata JSONB  -- flexible field for settlement info, etc.
-);
-
-CREATE INDEX idx_markets_status ON markets (status);
-CREATE INDEX idx_markets_event ON markets (event_ticker);
-
--- Orderbook snapshots (moderate volume, partitioned by month)
-CREATE TABLE snapshots (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
-    market_ticker TEXT NOT NULL REFERENCES markets(ticker),
-    captured_at TIMESTAMPTZ NOT NULL,
-    seq BIGINT NOT NULL,           -- WS sequence number at snapshot time
-    yes_levels JSONB NOT NULL,     -- [[price_cents, quantity], ...]
-    no_levels JSONB NOT NULL,      -- [[price_cents, quantity], ...]
-    source TEXT NOT NULL DEFAULT 'ws_subscribe',  -- ws_subscribe | periodic | resubscribe
-    PRIMARY KEY (captured_at, id)
-) PARTITION BY RANGE (captured_at);
-
--- Create initial partitions (automate with pg_cron or application logic)
-CREATE TABLE snapshots_2026_02 PARTITION OF snapshots
-    FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
-CREATE TABLE snapshots_2026_03 PARTITION OF snapshots
-    FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
-
-CREATE INDEX idx_snapshots_ticker_time ON snapshots (market_ticker, captured_at DESC);
-
--- Orderbook deltas (HIGH volume, partitioned by day)
-CREATE TABLE deltas (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
-    market_ticker TEXT NOT NULL,   -- no FK for write performance
-    ts TIMESTAMPTZ NOT NULL,       -- delta timestamp from Kalshi
-    received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    seq BIGINT NOT NULL,           -- WS sequence number
-    sid BIGINT NOT NULL,           -- WS subscription ID
-    price_cents INT NOT NULL,      -- price in cents (1-99)
-    delta_amount INT NOT NULL,     -- signed quantity change
-    side TEXT NOT NULL,            -- 'yes' or 'no'
-    PRIMARY KEY (ts, id)
-) PARTITION BY RANGE (ts);
-
--- Create daily partitions (automate via pg_cron or application)
-CREATE TABLE deltas_2026_02_13 PARTITION OF deltas
-    FOR VALUES FROM ('2026-02-13') TO ('2026-02-14');
-CREATE TABLE deltas_2026_02_14 PARTITION OF deltas
-    FOR VALUES FROM ('2026-02-14') TO ('2026-02-15');
--- ... etc
-
-CREATE INDEX idx_deltas_ticker_seq ON deltas (market_ticker, seq);
-CREATE INDEX idx_deltas_ticker_ts ON deltas (market_ticker, ts);
-
--- API keys (low volume)
-CREATE TABLE api_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id),
-    key_hash TEXT NOT NULL UNIQUE,      -- hashed API key (never store plaintext)
-    key_prefix TEXT NOT NULL,           -- first 8 chars for identification (kbook_live_)
-    name TEXT,
-    tier TEXT NOT NULL DEFAULT 'free',  -- free, pay_as_you_go, project, enterprise
-    rate_limit_per_min INT NOT NULL DEFAULT 60,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_used_at TIMESTAMPTZ,
-    metadata JSONB
-);
-
-CREATE INDEX idx_api_keys_hash ON api_keys (key_hash) WHERE is_active = true;
-CREATE INDEX idx_api_keys_user ON api_keys (user_id);
-
--- Usage tracking (for billing, moderate volume)
-CREATE TABLE usage_log (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
-    api_key_id UUID NOT NULL REFERENCES api_keys(id),
-    endpoint TEXT NOT NULL,
-    called_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    response_ms INT,
-    PRIMARY KEY (called_at, id)
-) PARTITION BY RANGE (called_at);
+```
+client.get_orderbook("TICKER", timestamp="2026-02-15T12:00:00Z")
+    │
+    │ Build request payload
+    ↓
+OrderbookRequest(market_ticker="TICKER", timestamp="2026-02-15T12:00:00Z")
+    │
+    │ Serialize to dict, send via httpx
+    ↓
+POST https://api.kalshibook.com/orderbook
+Headers: Authorization: Bearer kb-...
+Body: {"market_ticker": "TICKER", "timestamp": "2026-02-15T12:00:00Z"}
+    │
+    │ Check status code
+    ↓
+├─ 200: Parse JSON → OrderbookResponse dataclass → return
+├─ 4xx/5xx: Parse error JSON → raise typed exception
+└─ Network error: raise KalshiBookError with connection details
 ```
 
-### Schema Design Rationale
+## Client Class Design
 
-**Why JSONB for snapshot levels:** A snapshot's yes/no levels are a variable-length array of `[price, quantity]` pairs. Normalizing into rows would explode row count (20-50 levels per side per snapshot). JSONB keeps the snapshot as a single atomic row, which is fast to write and fast to read as a unit. We never need to query *individual* levels within a snapshot -- we always read the whole thing and process in application code.
+### Authentication
 
-**Why normalized columns for deltas (not JSONB):** Deltas are individual events with fixed fields. They benefit from PostgreSQL indexing on `market_ticker`, `ts`, and `seq`. Each delta is small (one price level change). Normalized columns enable efficient range queries without JSONB extraction overhead.
+The existing API uses `Authorization: Bearer kb-...` for data endpoints. The SDK stores the API key and injects it into every request.
 
-**Why daily partitions for deltas:** Active markets can generate thousands of deltas per day across all markets. Daily partitions keep each chunk small, enable efficient time-range queries (PostgreSQL prunes irrelevant partitions), and allow simple data lifecycle management (drop old partitions for archiving).
+```python
+class KalshiBook:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        base_url: str = "https://api.kalshibook.com",
+        timeout: float = 30.0,
+        sync: bool = False,
+    ):
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
 
-**Why monthly partitions for snapshots:** Snapshots are less frequent (one per market per subscription + periodic). Monthly granularity is sufficient.
+        if sync:
+            self._http = httpx.Client(
+                base_url=self._base_url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=timeout,
+            )
+        else:
+            self._http = httpx.AsyncClient(
+                base_url=self._base_url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=timeout,
+            )
+```
 
-**Why no foreign key on deltas.market_ticker:** FK constraints add overhead to every insert. Since deltas are the highest-volume table and market_ticker values are validated at the application layer (we only receive deltas for markets we subscribed to), skipping the FK is a deliberate write-performance optimization.
+**Note:** The existing API uses `Authorization: Bearer kb-...` (verified from `src/api/deps.py` line 53-58). This is standard Bearer token auth, which httpx handles natively.
 
-## Scaling Considerations
+### Method Naming Convention
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| MVP (10 markets, <10 customers) | Single WS connection, single Railway collector process, Supabase Free/Pro plan, PostgREST for raw access. Partition management manual or pg_cron. |
-| Growth (100 markets, 100 customers) | Still single WS connection (within 1K limit). Add periodic snapshot materialization. Monitor Supabase write throughput. Add Redis for API rate limiting if needed. |
-| Scale (500+ markets, 1K+ customers) | Multiple WS connections (connection pooling). Dedicated collector per connection. Consider moving deltas writes to direct PostgreSQL connection (bypass PostgREST). Supabase Pro with higher Realtime limits. |
-| Full coverage (5K+ markets) | 5+ WS connections. Need consensus/dedup layer if redundant collectors. Consider moving time-series storage to dedicated TSDB (QuestDB, ClickHouse) while keeping Supabase for auth/API keys/metadata. |
+Map 1:1 to API endpoints with predictable naming:
 
-### Scaling Priorities
+| API Endpoint | SDK Method | Returns |
+|--------------|------------|---------|
+| POST /orderbook | `get_orderbook(ticker, timestamp, depth=None)` | `OrderbookResponse` |
+| POST /deltas | `list_deltas(ticker, start_time, end_time, limit=100)` | `AsyncIterator[DeltaRecord]` |
+| POST /trades | `list_trades(ticker, start_time, end_time, limit=100)` | `AsyncIterator[TradeRecord]` |
+| GET /markets | `list_markets()` | `list[MarketSummary]` |
+| GET /markets/{ticker} | `get_market(ticker)` | `MarketDetail` |
+| GET /candles/{ticker} | `get_candles(ticker, start_time, end_time, interval="1h")` | `list[CandleRecord]` |
+| GET /events | `list_events(category=None, series_ticker=None, status=None)` | `list[EventSummary]` |
+| GET /events/{ticker} | `get_event(event_ticker)` | `EventDetail` |
+| GET /settlements | `list_settlements(event_ticker=None, result=None)` | `list[SettlementRecord]` |
+| GET /settlements/{ticker} | `get_settlement(ticker)` | `SettlementRecord` |
 
-1. **First bottleneck: Supabase write throughput for deltas.** At ~100 active markets with moderate activity, you might see 50-200 deltas/second. Batched inserts of 500 rows handle this easily. Monitor and increase batch size or add direct PG connection if needed.
-2. **Second bottleneck: Reconstruction query time.** As delta history grows, reconstruction requires scanning more rows. Periodic snapshots (every 5 min) bound this. Add materialized views for "latest orderbook" if live queries become slow.
-3. **Third bottleneck: Supabase Realtime limits.** Free plan allows 200 concurrent connections and 100 messages/second. If streaming to many customers, hit this fast. Move to custom WebSocket fan-out from the API server instead of relying on Supabase Realtime for customer-facing streaming.
+**High-level methods:**
 
-## Anti-Patterns
+| Method | Purpose | Returns |
+|--------|---------|---------|
+| `replay_orderbook(ticker, start, end)` | Orderbook state at every delta | `AsyncIterator[tuple[datetime, Orderbook]]` |
+| `stream_trades(ticker, start, end)` | All trades in time range | `AsyncIterator[TradeRecord]` (alias for list_trades) |
 
-### Anti-Pattern 1: Storing Full Orderbook State on Every Delta
+### Context Manager for Connection Lifecycle
 
-**What people do:** On each delta, reconstruct the full orderbook and store the complete state.
-**Why it's wrong:** Explodes storage by orders of magnitude. A delta is ~100 bytes; a full orderbook is ~2-5 KB. With 100 deltas/second across all markets, this becomes 200-500 KB/s of redundant data. Reconstruction on read is dramatically cheaper than materialization on every write.
-**Do this instead:** Store raw deltas. Periodically materialize snapshots (every 5 min). Reconstruct on demand for point-in-time queries.
+```python
+# Async usage
+async with KalshiBook(api_key="kb-...") as client:
+    orderbook = await client.get_orderbook(...)
 
-### Anti-Pattern 2: Using Supabase Realtime as the Primary Streaming Mechanism to Customers
+# Sync usage
+with KalshiBook(api_key="kb-...", sync=True) as client:
+    orderbook = client.get_orderbook(...)
+```
 
-**What people do:** Have customers subscribe directly to Supabase Realtime database change events on the deltas table.
-**Why it's wrong:** Supabase Realtime checks RLS policies for every message for every subscriber. 100 subscribers + 1 insert = 100 policy checks. This creates a database bottleneck. Free plan limits are 200 connections and 100 msg/sec -- easily exceeded. Also, Supabase Realtime does NOT guarantee delivery.
-**Do this instead:** Build a custom WebSocket fan-out in the API server. The collector pushes updates to the API server (or the API server reads from Supabase Realtime as a single subscriber), then the API server fans out to customer connections. This decouples customer count from database load.
+The context manager ensures the httpx client is properly closed, releasing connection pool resources.
 
-### Anti-Pattern 3: Individual Row Inserts for Deltas
+## Models Design
 
-**What people do:** Insert each delta individually as it arrives from the WebSocket.
-**Why it's wrong:** Each insert is an HTTP round-trip through PostgREST. At 50-200 deltas/second, this means 50-200 HTTP requests/second. Latency adds up, and you hit Supabase API rate limits.
-**Do this instead:** Buffer deltas in memory, flush in batches of 500-1000 rows every 2-5 seconds.
+### Use dataclasses, Not Pydantic
 
-### Anti-Pattern 4: Relying on Application-Level Sequence Tracking Without Gap Detection
+**Decision: Use stdlib `dataclasses` for SDK models, not Pydantic.**
 
-**What people do:** Assume every delta arrives in order and none are missed.
-**Why it's wrong:** WebSocket connections drop. Messages can be lost. Network interruptions happen. Without sequence gap detection, the stored delta stream becomes corrupt and reconstructions produce incorrect orderbook states.
-**Do this instead:** Track `seq` per market per subscription (`sid`). On gap detection, immediately re-subscribe to the market (which triggers a fresh snapshot), log the gap, and mark affected time ranges. The fresh snapshot provides a new known-good starting point.
+Rationale:
+- **Minimal dependencies:** The SDK should have exactly one dependency: `httpx`. Adding Pydantic adds 2MB+ to install size and pulls in `annotated-types` and `pydantic-core`.
+- **The server uses Pydantic, the SDK doesn't need to:** Pydantic's value is request validation on the server. The SDK receives already-validated JSON from the server -- it just needs to deserialize.
+- **Performance:** Dataclass construction is ~10x faster than Pydantic model construction. For replay loops processing thousands of deltas, this matters.
+- **Python 3.10+ compatibility:** Dataclasses with `slots=True` and `frozen=True` are efficient and immutable.
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass(frozen=True, slots=True)
+class OrderbookLevel:
+    price: int      # cents (1-99)
+    quantity: int
+
+@dataclass(frozen=True, slots=True)
+class OrderbookResponse:
+    market_ticker: str
+    timestamp: datetime
+    snapshot_basis: datetime
+    deltas_applied: int
+    yes: list[OrderbookLevel]
+    no: list[OrderbookLevel]
+    request_id: str
+    response_time: float
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OrderbookResponse":
+        return cls(
+            market_ticker=data["market_ticker"],
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            snapshot_basis=datetime.fromisoformat(data["snapshot_basis"]),
+            deltas_applied=data["deltas_applied"],
+            yes=[OrderbookLevel(**lv) for lv in data["yes"]],
+            no=[OrderbookLevel(**lv) for lv in data["no"]],
+            request_id=data["request_id"],
+            response_time=data["response_time"],
+        )
+```
+
+### Mutable Orderbook for Replay
+
+The replay abstraction needs a mutable orderbook that can apply deltas. This is separate from the frozen response dataclass:
+
+```python
+@dataclass
+class Orderbook:
+    """Mutable orderbook state for replay. Not frozen -- mutated by apply_delta."""
+    market_ticker: str
+    timestamp: datetime
+    yes: dict[int, int]  # price_cents -> quantity
+    no: dict[int, int]   # price_cents -> quantity
+
+    @classmethod
+    def from_response(cls, resp: OrderbookResponse) -> "Orderbook":
+        return cls(
+            market_ticker=resp.market_ticker,
+            timestamp=resp.timestamp,
+            yes={lv.price: lv.quantity for lv in resp.yes},
+            no={lv.price: lv.quantity for lv in resp.no},
+        )
+
+    def apply_delta(self, delta: DeltaRecord) -> None:
+        book = self.yes if delta.side == "yes" else self.no
+        price = delta.price_cents
+        book[price] = book.get(price, 0) + delta.delta_amount
+        if book[price] <= 0:
+            book.pop(price, None)
+        self.timestamp = delta.ts
+
+    def copy(self) -> "Orderbook":
+        return Orderbook(
+            market_ticker=self.market_ticker,
+            timestamp=self.timestamp,
+            yes=dict(self.yes),
+            no=dict(self.no),
+        )
+
+    @property
+    def best_yes(self) -> int | None:
+        return max(self.yes.keys()) if self.yes else None
+
+    @property
+    def best_no(self) -> int | None:
+        return max(self.no.keys()) if self.no else None
+
+    @property
+    def spread(self) -> int | None:
+        by, bn = self.best_yes, self.best_no
+        if by is not None and bn is not None:
+            return 100 - by - (100 - bn)  # binary market spread
+        return None
+```
+
+**This mirrors the server's reconstruction logic** (`src/api/services/reconstruction.py` lines 111-123) exactly, ensuring SDK-side and server-side orderbook states are identical.
 
 ## Integration Points
 
-### External Services
+### With Existing API
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Kalshi WebSocket API | Persistent WS connection, RSA-PSS auth headers, re-auth every 30 min | Endpoint: `wss://api.elections.kalshi.com/trade-api/ws/v2`. Auth requires `KALSHI-ACCESS-KEY`, `KALSHI-ACCESS-SIGNATURE` (RSA-PSS SHA-256), `KALSHI-ACCESS-TIMESTAMP`. |
-| Supabase PostgreSQL | `supabase-py` client with service role key for writes, anon key for reads via PostgREST | Batch inserts for deltas. Direct SQL for complex reconstruction queries. |
-| Supabase Auth | JWT-based auth for dashboard users, API key auth for programmatic access | Dashboard users get JWT via Supabase Auth. API customers use custom API keys validated in middleware. |
-| Supabase Realtime | Internal subscription only (API server subscribes as single client) | Do NOT expose directly to customers. Use as internal transport from DB to API server. |
-| Stripe | Webhook handler for subscription events, SDK for customer portal | Store Stripe customer ID in Supabase user profile. Track usage for metered billing. |
-| Railway | Persistent service for collector, web service for API | Collector needs always-on process. API can scale horizontally. Separate Railway services. |
+| Integration Point | How SDK Uses It | Notes |
+|-------------------|-----------------|-------|
+| `POST /orderbook` | `get_orderbook()` + initial state for `replay_orderbook()` | 5 credits per call |
+| `POST /deltas` | `list_deltas()` auto-paginator + delta stream for `replay_orderbook()` | 2 credits per page, cursor-based |
+| `POST /trades` | `list_trades()` auto-paginator | 2 credits per page, cursor-based |
+| `GET /markets` | `list_markets()` | 1 credit, no pagination |
+| `GET /markets/{ticker}` | `get_market()` | 1 credit |
+| `GET /candles/{ticker}` | `get_candles()` | 3 credits, query params |
+| `GET /events` | `list_events()` | 1 credit, query param filters |
+| `GET /events/{ticker}` | `get_event()` | 1 credit |
+| `GET /settlements` | `list_settlements()` | 1 credit, query param filters |
+| `GET /settlements/{ticker}` | `get_settlement()` | 1 credit |
+| `GET /health` | `health()` | No auth required |
+| OpenAPI spec at `/openapi.json` | Reference for endpoint contracts | Not consumed at runtime |
+| Error envelope `{"error": {...}}` | Parsed and mapped to typed exceptions | All error codes mapped |
+| Response headers `X-Credits-*` | Exposed as `client.credits_remaining` property | Updated after each request |
 
-### Internal Boundaries
+### Authentication Integration
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Collector -> Supabase | HTTP (PostgREST batched inserts) or direct PG connection | Service role key. No RLS bypass needed (service role already bypasses). |
-| API Server -> Supabase | HTTP (PostgREST reads) or direct PG for reconstruction | Anon key + RLS for customer-scoped data. Service role for admin operations. |
-| Collector -> API Server | No direct communication needed for MVP | In future: could push real-time updates via Redis pub/sub or shared Supabase Realtime channel to avoid API server polling. |
-| Customer -> API Server | HTTPS REST + WSS WebSocket | API key in header. TLS required in production. |
-| Dashboard -> Supabase | Direct Supabase client (JS SDK) | JWT auth. RLS policies scope data to user's API keys and usage. |
-
-## Build Order (Dependencies)
-
-Build order is driven by data flow dependencies: you can't serve data you haven't collected, and you can't collect data you have nowhere to store.
+The SDK uses the same auth mechanism as the API playground and curl examples:
 
 ```
-Phase 1: Schema + Collector Core
-   ├─ Supabase schema (migrations for markets, snapshots, deltas)
-   ├─ WS connection management (auth, reconnect, heartbeat)
-   ├─ Snapshot/delta parsing and validation
-   ├─ Batched write pipeline
-   └─ Market discovery (lifecycle channel)
-
-   WHY FIRST: Everything else depends on having data flowing into the database.
-   DEPENDENCY: None (Supabase project already initialized).
-
-Phase 2: API Foundation
-   ├─ FastAPI app skeleton
-   ├─ API key table + middleware
-   ├─ Orderbook reconstruction service
-   ├─ Basic REST endpoints (GET /orderbook, /deltas, /markets)
-   └─ Pydantic response models
-
-   WHY SECOND: Requires data in the database (Phase 1).
-   DEPENDENCY: Phase 1 complete, data flowing.
-
-Phase 3: Real-Time Streaming
-   ├─ WebSocket streaming endpoint
-   ├─ Fan-out architecture (subscribe to Supabase Realtime internally)
-   ├─ Client subscription management
-   └─ Backpressure handling
-
-   WHY THIRD: Requires both collector (data source) and API foundation (auth/routing).
-   DEPENDENCY: Phase 1 + Phase 2.
-
-Phase 4: Auth + Billing
-   ├─ Supabase Auth integration (dashboard users)
-   ├─ Stripe subscription setup
-   ├─ Tier-based rate limiting
-   ├─ Usage tracking and metered billing
-   └─ Customer dashboard (API key management, usage)
-
-   WHY FOURTH: Can ship with simple API keys before monetization.
-   DEPENDENCY: Phase 2 (API key infrastructure exists).
-
-Phase 5: Hardening + Scale
-   ├─ Partition management automation (pg_cron or application)
-   ├─ Data retention policies
-   ├─ Monitoring and alerting (gap detection, write latency)
-   ├─ Connection pooling (multiple WS connections)
-   └─ Performance optimization (materialized views, caching)
-
-   WHY FIFTH: Operational maturity after core product works.
-   DEPENDENCY: All prior phases.
+Authorization: Bearer kb-abc123...
 ```
 
-## Serving Layer Decision: FastAPI Custom vs PostgREST
+The SDK does NOT handle user signup, login, or API key creation. Those are dashboard operations. The SDK assumes the user already has an API key.
 
-**Recommendation: Use FastAPI as the primary serving layer. Expose PostgREST as a secondary "raw data" endpoint for advanced users.**
+### Credit Header Tracking
 
-| Criterion | PostgREST (Supabase auto) | FastAPI (Custom) |
-|-----------|--------------------------|------------------|
-| Orderbook reconstruction | Cannot do (requires application logic) | Full control over snapshot+delta replay |
-| WebSocket streaming | Not supported (PostgREST is REST-only) | Native FastAPI WebSocket support |
-| Rate limiting by API key | Requires RLS + custom functions (clunky) | Clean middleware pattern |
-| Response shaping | Limited to table schema + views | Full Pydantic model control |
-| Agent-friendly docs | Auto-generated but not domain-specific | Custom OpenAPI with domain-specific docs |
-| Setup effort | Zero (already exists) | Moderate (standard FastAPI patterns) |
-| Raw data access | Excellent (direct table queries) | Would need to reimplement pagination/filtering |
+The API returns credit info in response headers. The SDK should expose this:
 
-**Hybrid approach:** PostgREST handles "give me raw deltas for ticker X between time A and B" (it's great at this). FastAPI handles "give me the reconstructed orderbook at time T" and WebSocket streaming (PostgREST cannot do these).
+```python
+# After any API call, the client's credit state is updated
+orderbook = await client.get_orderbook(...)
+print(client.credits_remaining)  # from X-Credits-Remaining header
+print(client.credits_used)       # from X-Credits-Used header
+print(client.credits_total)      # from X-Credits-Total header
+```
+
+### New Components (SDK-Only, No Server Changes)
+
+The SDK is a pure client-side addition. No changes to the existing server code are required.
+
+| Component | New/Modified | Purpose |
+|-----------|--------------|---------|
+| `sdk/` directory | NEW | Entire SDK package |
+| Root `pyproject.toml` | MODIFIED | Add `[tool.uv.workspace]` section |
+| `sdk/pyproject.toml` | NEW | SDK package metadata, deps, PyPI config |
+| `sdk/src/kalshibook/` | NEW | SDK source code |
+| `sdk/tests/` | NEW | SDK tests |
+| `sdk/examples/` | NEW | Usage examples |
+
+### What is NOT Modified
+
+- All `src/api/` code remains unchanged
+- All `src/collector/` code remains unchanged
+- Database schema unchanged
+- Dashboard unchanged
+- No new API endpoints needed
+
+## Build Order (Dependency-Driven)
+
+```
+Step 1: Package Scaffolding
+   ├─ Create sdk/ directory with pyproject.toml
+   ├─ Add [tool.uv.workspace] to root pyproject.toml
+   ├─ Create kalshibook/__init__.py with version
+   └─ Verify: `uv sync` resolves workspace, `from kalshibook import __version__` works
+
+   DEPENDENCY: None.
+
+Step 2: Models + Exceptions
+   ├─ Define all response dataclasses (mirror API models)
+   ├─ Define exception hierarchy (mirror server error codes)
+   ├─ Unit tests for from_dict() and exception mapping
+   └─ Verify: Models can round-trip from sample API JSON
+
+   DEPENDENCY: Step 1 (package exists).
+
+Step 3: HTTP Transport + Client Core
+   ├─ _http.py: httpx wrapper with auth injection, error mapping
+   ├─ client.py: KalshiBook class with sync/async support
+   ├─ Implement non-paginated methods: get_orderbook, list_markets, get_market, etc.
+   ├─ Context manager support (__aenter__/__aexit__)
+   └─ Verify: Client can call real API endpoints
+
+   DEPENDENCY: Step 2 (models and exceptions exist).
+
+Step 4: Pagination
+   ├─ _pagination.py: async generator for cursor-based endpoints
+   ├─ Implement list_deltas, list_trades as auto-paginating methods
+   └─ Verify: Can paginate through multi-page delta result sets
+
+   DEPENDENCY: Step 3 (client can make HTTP calls).
+
+Step 5: High-Level Abstractions
+   ├─ replay.py: replay_orderbook async generator
+   ├─ Orderbook domain model with apply_delta
+   ├─ stream_trades convenience method
+   └─ Verify: Can replay orderbook for a real market across a time range
+
+   DEPENDENCY: Step 4 (pagination works for /deltas).
+
+Step 6: Polish + Publish
+   ├─ Examples directory with working scripts
+   ├─ Docstrings on all public methods
+   ├─ SDK reference docs (pdoc auto-generation)
+   ├─ PyPI publishing setup in pyproject.toml
+   └─ Verify: `pip install kalshibook` works from PyPI
+
+   DEPENDENCY: Step 5 (full feature set).
+```
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Generating SDK from OpenAPI Spec
+
+**What people do:** Use `openapi-python-client` or `openapi-generator` to auto-generate the SDK from the `/openapi.json` spec.
+
+**Why it's wrong for this project:** Generated code produces a networking layer but cannot generate the high-level abstractions (replay_orderbook, stream_trades) that are the SDK's primary value. The generated pagination handling is generic and doesn't match cursor-based patterns well. Generated code requires post-processing for idiomatic Python. For 10 endpoints, hand-writing is faster than fighting a code generator.
+
+**Do this instead:** Hand-write the SDK with 1:1 endpoint methods. The API is small enough (10 endpoints) that maintenance burden is negligible. Reserve code generation for the future TypeScript SDK (mentioned in PROJECT.md) where the economics are different (fewer TypeScript experts on team).
+
+### Anti-Pattern 2: Importing Server Pydantic Models into SDK
+
+**What people do:** Share Pydantic models between server and SDK (e.g., `from src.api.models import OrderbookResponse`).
+
+**Why it's wrong:** Creates a deployment dependency. Users who `pip install kalshibook` would need the entire server package (FastAPI, asyncpg, structlog, etc.) installed. The SDK must be an independent package with minimal dependencies.
+
+**Do this instead:** Define standalone dataclasses in the SDK that mirror the API's response structure. They're simple enough to keep in sync manually, especially in a monorepo where changes are visible in the same PR.
+
+### Anti-Pattern 3: Loading All Pages Before Returning
+
+**What people do:** `list_deltas()` fetches all pages into a list and returns the complete list.
+
+**Why it's wrong:** A full day of deltas for an active market can be 100K+ records. Loading all into memory before the user sees any data wastes memory and adds latency. Users doing backtest often process records sequentially and don't need them all in memory.
+
+**Do this instead:** Return an async generator that yields individual records. Users who need a list can do `list(await client.list_deltas(...))` explicitly.
+
+### Anti-Pattern 4: Separate Sync and Async Client Classes
+
+**What people do:** Create `KalshiBook` and `AsyncKalshiBook` as two separate classes with duplicated method signatures.
+
+**Why it's wrong:** Method duplication means every API change requires updating two classes. Testing doubles. Documentation doubles.
+
+**Do this instead:** Single `KalshiBook` class with `sync=True` flag that switches the underlying httpx client. Internally, the sync path uses `httpx.Client` and the async path uses `httpx.AsyncClient`. Method signatures stay identical. For pagination, sync mode converts async generators to sync generators internally.
+
+## Scaling Considerations
+
+| Concern | 10 Users | 1K Users | 10K Users |
+|---------|----------|----------|-----------|
+| SDK package size | N/A (constant) | N/A (constant) | N/A (constant) |
+| API request volume | Low, free tier covers | Moderate, PAYG covers | High, may need rate limit handling in SDK |
+| Replay memory | ~1MB per active replay | Same (per-user) | Same (per-user) |
+| SDK maintenance | 10 endpoints, trivial | Add retry logic, better docs | Consider async connection pooling |
+
+The SDK is client-side software -- it scales with user count on the API, not with SDK complexity. The primary scaling concern is the API server, not the SDK.
 
 ## Sources
 
-- [Kalshi Orderbook Updates WebSocket docs](https://docs.kalshi.com/websockets/orderbook-updates) -- HIGH confidence, official
-- [Kalshi WebSocket Connection docs](https://docs.kalshi.com/websockets/websocket-connection) -- HIGH confidence, official
-- [Kalshi WebSocket Quick Start](https://docs.kalshi.com/getting_started/quick_start_websockets) -- HIGH confidence, official
-- [Kalshi Market Lifecycle Channel](https://docs.kalshi.com/websockets/market-&-event-lifecycle) -- HIGH confidence, official
-- [Supabase TimescaleDB deprecation on PG17](https://supabase.com/docs/guides/database/extensions/timescaledb) -- HIGH confidence, official
-- [Supabase Realtime Limits](https://supabase.com/docs/guides/realtime/limits) -- HIGH confidence, official
-- [Supabase Table Partitioning](https://supabase.com/docs/guides/database/partitions) -- HIGH confidence, official
-- [Supabase REST API / PostgREST docs](https://supabase.com/docs/guides/api) -- HIGH confidence, official
-- [QuestDB L2 Orderbook Array Schema](https://questdb.com/blog/level-2-order-book-data-into-questdb-arrays/) -- MEDIUM confidence, third-party reference for schema patterns
-- [Gradient Trader: Efficient Orderbook Storage](https://rickyhan.com/jekyll/update/2017/10/28/how-to-handle-order-book-data.html) -- MEDIUM confidence, well-known reference for binary orderbook storage tradeoffs
-- [Supabase Batch Insert Best Practices](https://github.com/orgs/supabase/discussions/11349) -- MEDIUM confidence, community + official
-- [Kalshi WS Orderbook Simple (GitHub)](https://github.com/lukepalmdc/kalshi_ws_orderbook_simple) -- MEDIUM confidence, reference implementation
-- [websockets Python library](https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html) -- HIGH confidence, official library docs
+- [Alpaca-py SDK architecture (GitHub)](https://github.com/alpacahq/alpaca-py) -- HIGH confidence, production SDK for financial data API
+- [Polygon.io client-python (GitHub)](https://github.com/polygon-io/client-python) -- HIGH confidence, production SDK with auto-pagination
+- [Azure SDK Python Design Guidelines](https://azure.github.io/azure-sdk/python_design.html) -- HIGH confidence, comprehensive SDK design principles
+- [uv Workspaces documentation](https://docs.astral.sh/uv/concepts/projects/workspaces/) -- HIGH confidence, official docs
+- [LSST vertical monorepo architecture for FastAPI + client](https://sqr-075.lsst.io/) -- MEDIUM confidence, detailed monorepo SDK pattern
+- [Stainless: Build vs Buy SDKs](https://www.stainless.com/blog/build-vs-buy-sdks) -- MEDIUM confidence, SDK generation tradeoffs
+- [Speakeasy: Python SDK generation comparison](https://www.speakeasy.com/docs/sdks/languages/python/oss-comparison-python) -- MEDIUM confidence, generated vs hand-written analysis
+- Existing KalshiBook API source code (`src/api/`) -- HIGH confidence, primary source
 
 ---
-*Architecture research for: KalshiBook -- L2 orderbook collection, storage, and serving*
-*Researched: 2026-02-13*
+*Architecture research for: KalshiBook Python SDK*
+*Researched: 2026-02-17*

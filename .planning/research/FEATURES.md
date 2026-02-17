@@ -1,235 +1,227 @@
-# Feature Research
+# Feature Research: Python SDK + Backtesting Abstractions
 
-**Domain:** Monetized prediction market L2 orderbook data API
-**Researched:** 2026-02-13
-**Confidence:** MEDIUM (training data + web research; no direct user interviews)
+**Domain:** Python SDK wrapping a monetized prediction market L2 orderbook data API
+**Researched:** 2026-02-17
+**Confidence:** HIGH (patterns verified across Polygon, Databento, Alpaca, Tavily SDKs; KalshiBook API endpoints reviewed directly)
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete.
+Features users assume exist in any Python data SDK. Missing these = SDK feels amateurish.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **REST API for historical orderbook snapshots** | Every market data API (Polygon, Databento, Alpaca) exposes historical data via REST. Algo traders and quants need point-in-time orderbook state for backtesting. This is the core product. | HIGH | Requires orderbook reconstruction engine: initial snapshot + ordered deltas to rebuild state at arbitrary timestamp. Databento solves this with MBO snapshots generated every minute; Tardis.dev stores raw exchange messages and replays them. KalshiBook must reconstruct from stored snapshots + deltas. |
-| **API key authentication** | Universal across all monetized APIs (Polygon, Databento, Tavily, Exa). No API ships without key-based auth. Bearer token or API key header. | LOW | Standard pattern. Kalshi's own API uses API key in headers. Supabase Auth + RLS can handle this with a custom API keys table. |
-| **Rate limiting with response headers** | Industry standard. Polygon has 5 calls/min on free, unlimited on paid. Tavily uses credit-based limits. Exa uses QPS limits. Users expect `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` headers. | MEDIUM | Needs middleware that checks tier, tracks usage, returns headers. Must be per-key, not per-IP. |
-| **Tiered pricing (free tier through paid)** | Tavily: free 1,000 credits/mo, PAYG $0.008/credit, Project $30/mo, Enterprise custom. Polygon: free 5 calls/min, Starter $29/mo, Developer $79/mo, Advanced $200/mo. Databento: $125 free credit, then usage-based. Free tier is mandatory for adoption. | MEDIUM | Stripe subscription management. Four tiers: Free, Pay-As-You-Go, Project, Enterprise. Credit-based like Tavily (each API call costs credits). |
-| **Market metadata endpoint** | All market data APIs include instrument/symbol metadata. Kalshi markets have event info, contract specs, expiration dates, settlement rules. Users need this to know what they're looking at. | LOW | Kalshi's own API already provides this. Mirror/cache it and expose through KalshiBook API. |
-| **JSON response format** | Every modern API returns JSON. Polygon, Databento, Alpaca, Tavily, Exa all use JSON. Non-negotiable. | LOW | FastAPI handles this natively. |
-| **Consistent error responses** | Agent-friendly APIs need structured errors with `error_code`, `message`, `type` fields. AI agents parse these programmatically. Inconsistent errors break agent workflows. | LOW | Define a standard error envelope. Return it for all 4xx/5xx responses. |
-| **API documentation (OpenAPI spec)** | Polygon publishes full OpenAPI specs. Databento has comprehensive docs. Tavily documents every endpoint with examples. Plaid auto-generates SDKs from OpenAPI. Without docs, no one integrates. | MEDIUM | OpenAPI 3.1 spec auto-generated from FastAPI. Include descriptions, examples, and parameter details. Publish at `/openapi.json`. |
-| **Usage tracking / dashboard** | Users need to see how many credits they've used, current billing period, remaining quota. Tavily, Polygon, and Exa all provide this. | MEDIUM | Web dashboard showing: API key management, usage graphs, billing info. Supabase + simple frontend. |
-| **Real-time websocket streaming** | Alpaca, Polygon, and Databento all offer websocket streaming for real-time data. Kalshi itself exposes orderbook via websocket. Live traders need real-time feeds. | HIGH | Re-broadcast collected websocket data to subscribers. Needs connection management, subscription handling, authentication on WS connect. Supabase Realtime could help but may need custom WS server for performance. |
+| Feature | Why Expected | Complexity | API Dependency | Notes |
+|---------|--------------|------------|----------------|-------|
+| **Typed client with API key init** | Every SDK (Polygon `RESTClient(api_key=)`, Tavily `TavilyClient(api_key=)`, Databento `Historical(api_key=)`, Alpaca `StockHistoricalDataClient(api_key, secret_key)`) initializes with an API key. Users also expect env var fallback (`KALSHIBOOK_API_KEY`). | LOW | All endpoints (X-API-Key header) | Use `httpx.Client` / `httpx.AsyncClient` internally. Accept key as arg or env var. Single `KalshiBook(api_key=)` entry point. |
+| **Sync and async clients** | Polygon has `RESTClient`, Tavily has `TavilyClient` + `AsyncTavilyClient`, Databento has sync iterators + async iterators, Alpaca separates by data type. Quants use sync in notebooks, async in production bots. Both are required. | MEDIUM | All endpoints | Provide `KalshiBook()` (sync, uses `httpx.Client`) and `AsyncKalshiBook()` (async, uses `httpx.AsyncClient`). Mirror all methods. Polygon's approach of a single client class with sync methods is simpler to maintain than Alpaca's per-asset-class clients. |
+| **Automatic pagination iteration** | Polygon's defining pattern: `for trade in client.list_trades("AAPL", "2023-01-04"): ...` -- the client handles cursor-based pagination behind the scenes, yielding individual records. Users never see cursors. KalshiBook's `/deltas` and `/trades` both use cursor-based pagination with `next_cursor` / `has_more`. | MEDIUM | POST /deltas (cursor pagination), POST /trades (cursor pagination) | Return lazy iterators that follow `next_cursor` automatically. Each call costs credits -- SDK handles pagination transparently but users should be aware of credit consumption. `limit` parameter controls page size, not total records. |
+| **Pydantic response models** | Polygon returns typed model objects, Alpaca uses Pydantic for validation. Users expect `trade.yes_price` not `trade["yes_price"]`. Type hints enable IDE autocomplete and catch errors. Financial data users are precision-sensitive. | MEDIUM | All endpoints | Define Pydantic models mirroring API response shapes: `Orderbook`, `Delta`, `Trade`, `Candle`, `Market`, `Settlement`, `Event`. Reuse field names from existing API models. |
+| **Context manager support** | httpx best practice: `with KalshiBook(api_key=) as client: ...` ensures connection pool cleanup. Polygon uses this, httpx documentation strongly recommends it. Connection reuse across calls reduces latency. | LOW | None (client-side pattern) | Implement `__enter__`/`__exit__` (sync) and `__aenter__`/`__aexit__` (async) that manage the underlying httpx client lifecycle. Also support non-context-manager usage for notebook convenience. |
+| **Structured error handling** | Tavily raises `UsageLimitExceededError` (429), `InvalidAPIKeyError` (401), `BadRequestError` (400). Polygon doesn't do this well (users complain about opaque 429s). Good error hierarchy is table stakes for production use. KalshiBook API already returns structured `{error: {code, message, status}}` envelopes. | LOW | All endpoints (error responses) | Define exception hierarchy: `KalshiBookError` (base), `AuthenticationError` (401), `InsufficientCreditsError` (402/429), `ValidationError` (400/422), `NotFoundError` (404), `ServerError` (5xx). Parse API error envelope into typed exceptions. |
+| **Retry with exponential backoff** | Polygon uses `urllib3.util.Retry` for 429/5xx. Financial data users run batch jobs that hit rate limits. SDK should handle transient failures transparently. Tavily notably does NOT retry, and users complain about it. | MEDIUM | All endpoints | Use `tenacity` for retry logic. Retry on 429 (rate limit) and 5xx (server errors) with exponential backoff + jitter. Respect `Retry-After` header if present. Make retry configurable: `KalshiBook(max_retries=3, backoff_factor=0.5)`. |
+| **`.to_df()` / pandas conversion** | Databento: `data.to_df()`. Alpaca: `response.df` property returning multi-index DataFrame. This is the #1 pattern quants expect -- they live in pandas/jupyter. Every financial data SDK provides this. | MEDIUM | All list endpoints | Add `.to_df()` method on list response objects (trades, deltas, candles, markets, settlements). Return properly typed DataFrames with datetime index where appropriate. Make `pandas` an optional dependency (`pip install kalshibook[pandas]`). |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set the product apart. Not required, but valuable.
+Features that set KalshiBook's SDK apart from generic API wrappers.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Point-in-time orderbook reconstruction** | Tardis.dev's core value prop for crypto. No one does this for Kalshi. Quants need "what did the orderbook look like at exactly 2:34:17 PM on election day?" for backtesting. Databento generates MBO snapshots every minute; Tardis.dev replays raw messages. KalshiBook can reconstruct to arbitrary timestamps. | HIGH | Core differentiator. Build reconstruction engine that takes a base snapshot + applies deltas up to target timestamp. Must be fast enough for bulk backtesting queries. Depends on: complete data collection, ordered delta storage. |
-| **Raw delta stream access** | Tardis.dev provides raw exchange-native messages. Advanced quants and HFT-style traders want raw deltas, not reconstructed state. They build their own orderbook models. | MEDIUM | Expose stored deltas as a paginated stream endpoint. Time-range queries. Already storing the data — just need an API layer. Lower complexity than reconstruction but very high value for sophisticated users. |
-| **Agent-friendly API design (Tavily-style)** | Tavily's success comes from being the default search API for AI agents. KalshiBook targeting the same: AI trading bots (Claude, GPT-based) that need structured market data. Self-describing endpoints, LLM-optimized response shapes, natural language field names. | MEDIUM | Design principles from research: (1) Self-describing OpenAPI spec with natural language descriptions, (2) Flat JSON structures (avoid deep nesting), (3) Consistent naming across endpoints, (4) Include contextual metadata in responses (not just raw numbers), (5) Deterministic response shapes. |
-| **MCP server** | Model Context Protocol is the emerging standard for AI agent tool use. Polygon.io, Alpha Vantage, and Polymarket already have MCP servers. Kalshi has community MCP servers but no official orderbook data MCP. Being the canonical Kalshi orderbook MCP server is a land-grab opportunity. | MEDIUM | Implement MCP server that exposes KalshiBook endpoints as tools. Agents can query orderbook state, get market metadata, stream updates through MCP. FastAPI endpoints become MCP tools. Growing ecosystem — early mover advantage. |
-| **Downloadable flat files (CSV/Parquet)** | Tardis.dev offers downloadable CSV datasets. Databento offers batch downloads in binary/CSV. Quants doing large-scale backtesting want to download entire datasets, not make thousands of API calls. | MEDIUM | Generate daily/weekly snapshots as CSV or Parquet files. Host on S3-compatible storage (Supabase Storage). Reduces API load for bulk users. Can be a premium tier feature. |
-| **Credit-based pricing with transparent costs** | Tavily's credit system is elegant: basic search = 1 credit, advanced = 2 credits. Users know exactly what each call costs. No surprise bills. Agent-friendly because bots can budget programmatically. | LOW | Define credit costs per endpoint: snapshot query = 1 credit, reconstruction = 2 credits, bulk download = N credits. Transparent, predictable, machine-budgetable. |
-| **`/llms.txt` and `/llms-full.txt` discovery** | Emerging convention (Kalshi itself publishes `docs.kalshi.com/llms.txt`). AI agents and LLMs look for these files to understand API capabilities without reading full docs. Early signal of agent-first thinking. | LOW | Static text files describing API capabilities in LLM-friendly format. Minimal effort, strong signal to agent builders that this API is built for them. |
-| **Python SDK** | Databento's Python client is excellent: supports DataFrames, replay, normalized schemas. Tardis.dev has Node.js and Python clients. Algo traders overwhelmingly use Python. | MEDIUM | Auto-generate from OpenAPI spec (tools like Fern, APIMatic). Add convenience methods for common workflows: `client.get_orderbook(ticker, timestamp)`, `client.stream(tickers)`. Publish to PyPI. |
-| **Sequence numbers for delta ordering** | Databento and exchange APIs use sequence numbers to detect gaps. Essential for data integrity — if a subscriber misses delta #47, they know to re-snapshot. Without this, orderbook reconstruction is unreliable. | LOW | Add monotonically increasing sequence number to each delta. Include in both stored data and streamed output. Enables gap detection and reliable replay. |
+| Feature | Value Proposition | Complexity | API Dependency | Notes |
+|---------|-------------------|------------|----------------|-------|
+| **`replay_orderbook()` -- historical orderbook reconstruction iterator** | Databento's killer feature is `data.replay(callback=handler)` for event-driven market replay. KalshiBook's core differentiator is point-in-time orderbook reconstruction. `replay_orderbook()` would iterate through time, yielding reconstructed orderbook state at each delta -- enabling users to "watch" how the orderbook evolved. No other Kalshi data provider offers this. | HIGH | POST /orderbook (reconstruction), POST /deltas (delta stream) | Two implementation approaches: (1) Server-side: call `/orderbook` at regular intervals (simple, expensive in credits), or (2) Client-side: fetch deltas via `/deltas`, reconstruct locally by applying deltas to initial snapshot (complex, credit-efficient). Recommend hybrid: fetch initial orderbook via `/orderbook`, then apply deltas client-side. Yield `OrderbookSnapshot` at each delta or at configurable intervals. This is the SDK's signature feature. |
+| **`stream_trades()` -- historical trade replay** | Databento's replay pattern applied to trades. Users iterate trade history as if it were happening live: `for trade in client.stream_trades("TICKER", start, end): ...`. Useful for backtesting strategies against trade-by-trade execution data. | MEDIUM | POST /trades (paginated) | Build on auto-pagination iterator. Add time-based filtering, optional playback speed control (sleep between records to simulate real-time), and optional callback interface (like Databento's `replay(callback=)`). Simpler than orderbook replay because trades are flat records, no reconstruction needed. |
+| **`get_orderbook()` single-call convenience** | Wraps POST /orderbook into `client.get_orderbook("TICKER", timestamp=datetime(...))`. Polygon has `client.get_aggs()` for single calls vs `client.list_aggs()` for iteration. The single-call pattern is the most common usage -- get the orderbook at one point in time. | LOW | POST /orderbook | Thin wrapper. Accept `datetime` objects (not ISO strings). Return typed `Orderbook` model with `.yes` and `.no` as lists of `Level(price=, quantity=)`. Include `.spread`, `.midpoint`, `.best_bid`, `.best_ask` computed properties. |
+| **Market discovery helpers** | Polygon has `client.list_tickers()` with filtering. Users need to discover what markets exist, which have data, and for what time ranges. Current API has GET /markets and GET /events. | LOW | GET /markets, GET /events, GET /events/{ticker} | `client.list_markets(category=, status=)`, `client.get_market("TICKER")`, `client.list_events(category=, series_ticker=)`, `client.get_event("EVENT_TICKER")`. Return typed models with `first_data_at` / `last_data_at` so users know data coverage. |
+| **`get_candles()` with DataFrame-first design** | OHLCV candles are the bread and butter of quant analysis. Existing GET /candles/{ticker} endpoint is perfect for SDK wrapping. Return as DataFrame by default since candles are inherently tabular. | LOW | GET /candles/{ticker} | `client.get_candles("TICKER", start, end, interval="1h")` returning `CandleResult` with `.to_df()`. DataFrame should have `bucket` as DatetimeIndex, columns for open/high/low/close/volume/trade_count. |
+| **`get_settlement()` for P&L calculation** | Backtesting requires knowing final settlement values. `client.get_settlement("TICKER")` returns whether market resolved yes/no/void and at what value. Essential for computing strategy returns. | LOW | GET /settlements/{ticker}, GET /settlements | `client.get_settlement("TICKER")` and `client.list_settlements(event_ticker=)`. Enables `strategy_pnl = (settlement.value - entry_price) * contracts`. |
+| **`backtest()` high-level orchestrator** | Combine replay_orderbook + stream_trades + settlements into a single backtesting workflow. User provides a strategy callback, SDK handles data fetching and P&L tracking. Inspired by Backtrader's integration with Alpaca, but purpose-built for prediction markets. | HIGH | All endpoints | This is a v2 feature. Requires replay_orderbook and stream_trades to be stable first. Define a `Strategy` protocol/ABC with `on_orderbook(snapshot)` and `on_trade(trade)` methods. SDK calls these in chronological order, tracks positions and P&L. |
+| **Notebook-friendly repr** | Databento objects have rich `__repr__` in notebooks. Polygon objects print useful summaries. IPython/Jupyter users should see formatted output, not raw object dumps. | LOW | None (client-side) | Implement `_repr_html_()` for Jupyter rendering of orderbook snapshots (bid/ask table), trade lists, and candle data. Low effort, high perceived polish. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
+Features that seem good but create problems for this SDK.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **OHLCV candle aggregation** | Traditional market data APIs (Polygon, Alpaca) all have candle/bar endpoints. Seems like table stakes. | Prediction markets are fundamentally different from equities. Binary outcomes, 0-100 cent price range, event-driven (not continuous trading sessions). OHLCV candles obscure the orderbook dynamics that are KalshiBook's actual value. Building candle aggregation is moderate complexity and distracts from the core differentiator. Also, Kalshi's own API already provides basic price data — competing on candles is a losing game. | Expose raw orderbook data and let users compute their own aggregations. Possibly add as a v2+ feature if demand is validated. PROJECT.md already marks this as out of scope. |
-| **Trade execution / order placement** | Users trading on Kalshi will want to place orders through the same API they get data from. "One API for everything." | Turns a read-only data product into a brokerage. Regulatory complexity (CFTC-regulated exchange), liability, Kalshi API ToS issues, massive security surface area. Completely different product. | Stay read-only. Document how to use KalshiBook data alongside Kalshi's own trading API. Provide clear links to Kalshi's trading docs. PROJECT.md already excludes this. |
-| **Multi-exchange aggregation** | FinFeedAPI aggregates Kalshi + Polymarket + Manifold. Seems like a bigger TAM. | Polymarket is crypto/blockchain-based (different data model entirely). Manifold is play money. Aggregating across incompatible market structures creates a lowest-common-denominator product. KalshiBook's value is depth on Kalshi, not breadth across platforms. Also massively increases engineering scope. | Go deep on Kalshi. If demand exists, add Polymarket as a separate data source in a future milestone, not a unified schema. |
-| **Real-time analytics / derived metrics** | Sophisticated metrics like order flow imbalance, VWAP, bid-ask spread timeseries, market impact estimates. | Each metric is a mini-product with its own correctness requirements, edge cases, and maintenance burden. Premature optimization of the data layer before validating core demand. Users who need these can compute them from raw data. | Provide raw data with enough fidelity that users can compute any derived metric. Consider adding 2-3 high-value derived metrics (e.g., mid-price, spread) in v2 after validating demand. |
-| **GraphQL API** | Some developers prefer GraphQL for flexible queries. | Adds a second API surface to maintain. Market data APIs overwhelmingly use REST (Polygon, Databento, Alpaca, Tardis.dev all REST). GraphQL's flexibility is a liability for a data product — unpredictable query costs, harder to rate-limit, harder for AI agents to use (agents work better with fixed endpoints). | REST only. Well-designed REST endpoints with query parameters for filtering. If users need flexible queries, the flat file downloads serve that use case. |
-| **Mobile app** | Visual orderbook display, push notifications for market events. | Completely different product and skill set. Web dashboard is sufficient for API key management. The actual product is the API, not a UI. Mobile adds App Store review cycles, native development, push notification infrastructure. | Web-only dashboard for account management. The API is the product. PROJECT.md already excludes mobile. |
-| **Redundant multi-connection data collection** | Multiple simultaneous websocket connections to Kalshi for data completeness and failover. | Correct long-term architecture, but premature for MVP. Kalshi's 1,000 market subscription limit per connection means one connection covers liquid markets. Adding redundancy before validating product-market fit is over-engineering. | Single websocket connection for MVP (covers liquid/popular markets). Add connection pooling and redundancy in a dedicated future milestone. PROJECT.md already scopes this out. |
+| **Caching layer in SDK** | "Don't re-fetch data I already have" -- seems efficient. Some SDKs like yfinance cache aggressively. | Prediction market data is already historical and immutable -- the API returns the same data for the same query. Adding caching in the SDK creates stale data bugs, memory bloat for large datasets, and cache invalidation complexity. The API layer already handles this (CDN/caching on the server side). Users who want caching can save DataFrames to parquet themselves. | Document the pattern: `df = client.get_candles(...).to_df(); df.to_parquet("candles.parquet")`. Let users manage their own data persistence. |
+| **Built-in charting/visualization** | Alpaca's backtester blog posts show matplotlib charts. Users want `client.plot_orderbook()`. | Adds matplotlib/plotly as dependencies, bikeshed on chart styling, and different users want different visualization tools. SDK should produce data, not pictures. Twelve Data includes charting and it creates maintenance burden. | Return DataFrames that users can plot with their preferred tool. Provide example notebooks showing matplotlib/plotly usage. |
+| **WebSocket real-time streaming** | "I want live data too, not just historical." Polygon and Alpaca both have WebSocket clients in their SDKs. | KalshiBook is a historical data product. Real-time data comes from Kalshi's own WebSocket (which is free and public). Wrapping Kalshi's live WebSocket in the KalshiBook SDK would be re-selling free data. It also requires fundamentally different infrastructure (persistent connections, heartbeats, reconnection logic). | Document how to use Kalshi's native WebSocket alongside KalshiBook historical data. Possibly provide a thin `KalshiLive` helper that connects to Kalshi directly (not through KalshiBook API), but keep it clearly separate from the data product. |
+| **Auto-generated SDK from OpenAPI spec** | Tools like Fern, Speakeasy, and openapi-generator can auto-generate Python clients. Seems like zero effort. | Auto-generated SDKs are verbose, lack ergonomic methods (no `replay_orderbook()`), produce poor type names, and can't implement the client-side reconstruction logic that makes this SDK valuable. The backtesting abstractions ARE the product -- you can't auto-generate them. | Hand-craft the SDK with the backtesting abstractions as first-class features. Use OpenAPI spec as reference for endpoint shapes, but write the client manually. |
+| **Async-only design** | "Modern Python should be async-first." Some newer SDKs only provide async interfaces. | Quants work in Jupyter notebooks where async is awkward (`await` in cells requires `nest_asyncio` hacks). Most backtesting happens in sync scripts. Databento and Polygon both offer sync interfaces because that's what data scientists use. Async-only alienates the primary user base. | Provide both sync and async. Sync is primary, async is available for production/bot use cases. Implement sync first, async mirrors sync API exactly. |
+| **Strategy DSL / declarative backtesting** | Backtrader has a class-based strategy system. Users might want `@on_signal(...)` decorators or a custom language for defining strategies. | Massively increases scope, creates a framework lock-in, and competes with established backtesting frameworks (Backtrader, Zipline, vectorbt). KalshiBook should be a data provider, not a framework. | Provide raw data iterators and replay functions. Let users plug into their preferred backtesting framework. Offer example integrations with popular frameworks. |
 
 ## Feature Dependencies
 
 ```
-[Data Collection (WS listener)]
-    └──requires──> [Supabase Storage Schema]
-                       └──required-by──> [Historical REST API]
-                       └──required-by──> [Raw Delta Stream API]
-                       └──required-by──> [Point-in-time Reconstruction]
+Typed Client + API Key Init
+    |
+    +-- Structured Error Handling
+    |       (errors need to be raised from client methods)
+    |
+    +-- Retry with Backoff
+    |       (retry logic wraps client HTTP calls)
+    |
+    +-- Context Manager Support
+    |       (manages underlying httpx client)
+    |
+    +-- Market Discovery Helpers
+    |       (client.list_markets(), client.get_market())
+    |       |
+    |       +-- enhances --> Replay Orderbook
+    |       |       (need to know data coverage before replaying)
+    |       |
+    |       +-- enhances --> Stream Trades
+    |               (need to know data coverage before streaming)
+    |
+    +-- Auto-Pagination Iterator
+    |       (core iteration pattern for /deltas and /trades)
+    |       |
+    |       +-- Stream Trades
+    |       |       (paginated trade iteration with replay semantics)
+    |       |
+    |       +-- Replay Orderbook
+    |               (fetches deltas via pagination, reconstructs client-side)
+    |
+    +-- Pydantic Response Models
+    |       (all methods return typed objects)
+    |       |
+    |       +-- .to_df() / Pandas Conversion
+    |       |       (convert typed models to DataFrames)
+    |       |
+    |       +-- Notebook-Friendly Repr
+    |               (_repr_html_ on model objects)
+    |
+    +-- get_orderbook() Convenience
+    |       (single-call wrapper, thin)
+    |
+    +-- get_candles() Convenience
+    |       (single-call wrapper, thin)
+    |
+    +-- get_settlement() Convenience
+            (single-call wrapper, thin)
+            |
+            +-- enhances --> backtest() Orchestrator
+                    (needs settlement for P&L calculation)
 
-[API Key Authentication]
-    └──required-by──> [Rate Limiting]
-    └──required-by──> [Usage Tracking]
-    └──required-by──> [Tiered Pricing]
-    └──required-by──> [Real-time WS Streaming]
-
-[Rate Limiting]
-    └──requires──> [API Key Authentication]
-    └──required-by──> [Tiered Pricing]
-
-[Tiered Pricing]
-    └──requires──> [API Key Authentication]
-    └──requires──> [Rate Limiting]
-    └──requires──> [Usage Tracking]
-    └──requires──> [Stripe Integration]
-
-[Point-in-time Reconstruction]
-    └──requires──> [Data Collection]
-    └──requires──> [Ordered Delta Storage with Sequence Numbers]
-
-[Real-time WS Streaming]
-    └──requires──> [Data Collection]
-    └──requires──> [API Key Authentication]
-
-[Python SDK]
-    └──requires──> [OpenAPI Spec]
-    └──requires──> [Stable REST API]
-
-[MCP Server]
-    └──requires──> [Stable REST API]
-    └──requires──> [OpenAPI Spec]
-
-[Flat File Downloads]
-    └──requires──> [Data Collection]
-    └──requires──> [Tiered Pricing] (premium feature)
-
-[Dashboard]
-    └──requires──> [API Key Authentication]
-    └──requires──> [Usage Tracking]
+Replay Orderbook + Stream Trades + get_settlement()
+    |
+    +-- backtest() High-Level Orchestrator (v2)
+            (combines all three for end-to-end backtesting)
 ```
 
 ### Dependency Notes
 
-- **Point-in-time Reconstruction requires Data Collection:** Cannot reconstruct without complete snapshot + delta history. Data completeness is existential.
-- **Tiered Pricing requires Auth + Rate Limiting + Usage Tracking:** The entire billing stack must work together. Stripe integration ties it all together.
-- **Python SDK requires Stable REST API:** Don't build SDK until API endpoints are stable. Auto-generate from OpenAPI to avoid drift.
-- **MCP Server requires Stable REST API:** MCP tools wrap REST endpoints. Build after API is stable, not before.
-- **Real-time WS Streaming requires Data Collection:** Re-broadcasts collected data. If collector is down, stream is down.
-- **Flat File Downloads require Data Collection + Pricing:** Bulk data is expensive to serve. Must be gated behind premium tiers.
+- **Auto-pagination requires typed client:** Iterator logic lives in the base client, following cursors and yielding typed records.
+- **Replay orderbook requires auto-pagination + response models:** Fetches deltas page-by-page, reconstructs orderbook using typed Delta/Orderbook models client-side.
+- **Stream trades requires auto-pagination:** Thin layer over paginated /trades endpoint with optional replay timing.
+- **`.to_df()` requires Pydantic models:** Conversion logic maps model fields to DataFrame columns.
+- **`backtest()` requires replay + trades + settlements:** This is the capstone feature -- it cannot be built until the underlying data access methods are stable.
+- **Market discovery enhances all replay features:** Users need to know what data exists (coverage dates) before they can meaningfully replay it.
 
 ## MVP Definition
 
-### Launch With (v1)
+### Launch With (v1.0)
 
-Minimum viable product — what's needed to validate demand for Kalshi orderbook data.
+Minimum viable SDK -- what's needed for users to prefer the SDK over raw HTTP calls.
 
-- [ ] **Data collection pipeline** — Websocket listener collecting L2 snapshots + deltas for liquid Kalshi markets. Without data, there is no product.
-- [ ] **Historical orderbook REST API** — Query orderbook state at a given timestamp for a given market. Core use case: backtesting.
-- [ ] **Point-in-time reconstruction engine** — Rebuild orderbook state from snapshot + deltas. This IS the core differentiator.
-- [ ] **Raw delta stream endpoint** — Paginated access to raw deltas by market and time range. Advanced users want this.
-- [ ] **Market metadata endpoint** — List available markets, contract details, data coverage dates.
-- [ ] **API key authentication** — Issue keys, validate on requests, associate with usage.
-- [ ] **Rate limiting** — Per-key rate limits with standard response headers.
-- [ ] **Free tier** — 1,000 credits/month (or equivalent). Enables adoption without friction.
-- [ ] **Basic API documentation** — OpenAPI spec auto-generated from FastAPI + hosted docs page.
-- [ ] **Consistent JSON error responses** — Standard error envelope across all endpoints.
+- [x] `KalshiBook(api_key=)` typed client with env var fallback
+- [x] Context manager support (`with KalshiBook() as client:`)
+- [x] Structured exception hierarchy (AuthenticationError, InsufficientCreditsError, etc.)
+- [x] Retry with exponential backoff on 429/5xx
+- [x] `client.get_orderbook(ticker, timestamp, depth=)` -- single reconstruction call
+- [x] `client.get_deltas(ticker, start, end)` -- auto-paginating iterator
+- [x] `client.get_trades(ticker, start, end)` -- auto-paginating iterator
+- [x] `client.get_candles(ticker, start, end, interval=)` -- candle data
+- [x] `client.list_markets()`, `client.get_market(ticker)` -- discovery
+- [x] `client.list_events()`, `client.get_event(event_ticker)` -- discovery
+- [x] `client.get_settlement(ticker)`, `client.list_settlements()` -- settlement data
+- [x] Pydantic response models for all endpoints
+- [x] `.to_df()` on list results (pandas optional dependency)
+- [x] Published to PyPI as `kalshibook`
 
 ### Add After Validation (v1.x)
 
-Features to add once core is working and there are paying users.
+Features to add once core SDK is in use and patterns are validated.
 
-- [ ] **Pay-as-you-go + Project tiers** — Once free tier users convert, add paid tiers with Stripe.
-- [ ] **Usage dashboard** — Show users their consumption, remaining credits, billing.
-- [ ] **Real-time websocket streaming** — Add once historical API demand is validated. Higher complexity.
-- [ ] **Python SDK** — Auto-generate from OpenAPI once endpoints are stable. Publish to PyPI.
-- [ ] **`/llms.txt` discovery file** — Low effort, high signal for agent-first positioning.
-- [ ] **Sequence number gap detection** — Add gap detection to delta streams for data integrity verification.
+- [ ] `AsyncKalshiBook()` async client -- add when production bot users request it
+- [ ] `replay_orderbook(ticker, start, end)` -- client-side orderbook reconstruction iterator
+- [ ] `stream_trades(ticker, start, end, speed=)` -- trade replay with optional timing
+- [ ] Notebook-friendly `_repr_html_()` -- add when Jupyter usage is confirmed
+- [ ] Configurable `base_url` for self-hosted / staging environments
 
 ### Future Consideration (v2+)
 
-Features to defer until product-market fit is established.
+Features to defer until SDK has proven adoption.
 
-- [ ] **MCP server** — Build after API is stable. Land-grab opportunity but needs solid foundation first.
-- [ ] **Flat file downloads (CSV/Parquet)** — Bulk data access for large-scale backtesting. Premium feature.
-- [ ] **Enterprise tier** — Custom rate limits, SLAs, dedicated support. Build when enterprise customers appear.
-- [ ] **Connection pooling / full market coverage** — Scale beyond 1,000 market limit. Future milestone.
-- [ ] **Derived metrics (spread, mid-price, order imbalance)** — Add 2-3 high-value computed fields after validating raw data demand.
+- [ ] `backtest()` orchestrator with Strategy protocol -- needs replay + settlements stable
+- [ ] Backtrader / vectorbt integration adapters -- only if community requests
+- [ ] CLI tool (`kalshibook fetch-candles TICKER ...`) -- only if non-programmatic use emerges
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Data collection pipeline | HIGH | HIGH | P1 |
-| Historical orderbook REST API | HIGH | HIGH | P1 |
-| Point-in-time reconstruction | HIGH | HIGH | P1 |
-| Raw delta stream endpoint | HIGH | MEDIUM | P1 |
-| Market metadata endpoint | MEDIUM | LOW | P1 |
-| API key authentication | HIGH | MEDIUM | P1 |
-| Rate limiting | HIGH | MEDIUM | P1 |
-| Free tier (credit system) | HIGH | MEDIUM | P1 |
-| OpenAPI documentation | HIGH | LOW | P1 |
-| Consistent error responses | MEDIUM | LOW | P1 |
-| Stripe billing (PAYG/Project) | HIGH | MEDIUM | P2 |
-| Usage dashboard | MEDIUM | MEDIUM | P2 |
-| Real-time WS streaming | HIGH | HIGH | P2 |
-| Python SDK | MEDIUM | MEDIUM | P2 |
-| `/llms.txt` discovery | MEDIUM | LOW | P2 |
-| Agent-friendly response design | MEDIUM | LOW | P2 |
-| MCP server | MEDIUM | MEDIUM | P3 |
-| Flat file downloads | MEDIUM | MEDIUM | P3 |
-| Enterprise tier | LOW (initially) | MEDIUM | P3 |
-| Connection pooling | MEDIUM | HIGH | P3 |
-| Derived metrics | LOW | MEDIUM | P3 |
-
-**Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
+| Feature | User Value | Implementation Cost | Priority | Phase |
+|---------|------------|---------------------|----------|-------|
+| Typed client + API key init | HIGH | LOW | P1 | SDK Core |
+| Context manager support | HIGH | LOW | P1 | SDK Core |
+| Structured error handling | HIGH | LOW | P1 | SDK Core |
+| Retry with backoff | HIGH | MEDIUM | P1 | SDK Core |
+| Pydantic response models | HIGH | MEDIUM | P1 | SDK Core |
+| get_orderbook() | HIGH | LOW | P1 | SDK Core |
+| Auto-pagination (deltas, trades) | HIGH | MEDIUM | P1 | SDK Core |
+| get_candles() | MEDIUM | LOW | P1 | SDK Core |
+| list_markets() / get_market() | MEDIUM | LOW | P1 | SDK Core |
+| list_events() / get_event() | MEDIUM | LOW | P1 | SDK Core |
+| get_settlement() / list_settlements() | MEDIUM | LOW | P1 | SDK Core |
+| .to_df() pandas conversion | HIGH | MEDIUM | P1 | SDK Core |
+| PyPI publishing | HIGH | LOW | P1 | SDK Core |
+| Async client (AsyncKalshiBook) | MEDIUM | MEDIUM | P2 | Post-core |
+| replay_orderbook() | HIGH | HIGH | P2 | Backtesting |
+| stream_trades() | MEDIUM | MEDIUM | P2 | Backtesting |
+| Notebook repr | LOW | LOW | P2 | Polish |
+| backtest() orchestrator | MEDIUM | HIGH | P3 | v2 |
 
 ## Competitor Feature Analysis
 
-| Feature | Polygon.io/Massive | Databento | Tardis.dev | Tavily | FinFeedAPI | KalshiBook Approach |
-|---------|-------------------|-----------|------------|--------|------------|-------------------|
-| **Data type** | Stocks, options, forex, crypto | Equities, futures, options (MBO/MBP/MBP-10 schemas) | Crypto orderbook, trades, funding, liquidations | Web search results | Prediction market prices, trades, OHLCV | Kalshi L2 orderbook snapshots + deltas |
-| **Historical access** | REST API, flat files (S3) | REST API, batch download (binary/CSV/JSON), replay() | HTTP API (NDJSON), downloadable CSV | N/A | REST API | REST API for reconstruction + raw deltas |
-| **Real-time** | WebSocket streaming | Streaming API (live) | Client library streaming (connects to exchanges) | N/A | N/A | WebSocket re-broadcast of collected data |
-| **Orderbook depth** | L1 quotes, some L2 | Full depth: MBO (individual orders), MBP-10 (10 levels) | Full L2/L3 tick-level snapshots + incremental updates | N/A | Basic orderbook endpoint | Full L2 snapshots + deltas with reconstruction |
-| **Point-in-time replay** | No (snapshots only) | Yes (replay() method, MBO snapshots every minute) | Yes (time-machine replay, core feature) | N/A | No | Yes (reconstruct to any timestamp) — core feature |
-| **Pricing model** | Free (5 calls/min) through $200/mo advanced | $125 free credit, usage-based or flat $199/mo | Subscription plans, academic discounts, free trials | Free 1,000 credits, PAYG $0.008, Project $30, Enterprise | Unknown | Tavily-style credits: Free 1,000/mo, PAYG, Project, Enterprise |
-| **Auth** | API key | API key (env var recommended) | API key (Bearer token) | API key | API key | API key |
-| **SDKs** | Python, JS, Go, Java | Python, C++, Rust | Node.js, Python | Python, JS (community) | Unknown | Python (auto-generated from OpenAPI) |
-| **Agent features** | MCP server available | Normalized schemas, DataFrame casting | Async iteration, composable replay | Built for agents: structured JSON, LLM-optimized responses, `/llms.txt` | Normalized cross-exchange data | Agent-first: `/llms.txt`, flat JSON, MCP server, Tavily-style design |
-| **Data format** | JSON, CSV | DBN (binary), CSV, JSON, DataFrame/ndarray | NDJSON, CSV | JSON | JSON | JSON (REST), JSON (WS) |
-| **Uptime** | 99.99% claimed | Not published | 99.9% data completeness | Sub-200ms average latency | Unknown | Target 99.9%+ |
+| Feature | Polygon (polygon-api-client) | Databento (databento-python) | Alpaca (alpaca-py) | Tavily (tavily-python) | KalshiBook SDK (planned) |
+|---------|------------------------------|-------------------------------|--------------------|-----------------------|--------------------------|
+| **Client init** | `RESTClient(api_key=)` | `Historical(api_key=)`, env var fallback | Per-asset-class clients | `TavilyClient(api_key=)`, env var fallback | `KalshiBook(api_key=)`, env var fallback |
+| **Sync/Async** | Sync only (REST), async for WS | Sync iterators + async iterators | Separate sync clients per asset | Sync + `AsyncTavilyClient` | Sync primary, `AsyncKalshiBook` in v1.x |
+| **Auto-pagination** | Yes, default on. `for t in client.list_trades(): ...` | N/A (batch downloads) | Not documented | N/A (single-call API) | Yes, for /deltas and /trades |
+| **Response types** | Typed model objects | `DBNStore` with record iteration | Pydantic models | Dict | Pydantic models |
+| **DataFrame support** | No built-in .to_df() | `data.to_df()`, `data.to_ndarray()` | `.df` property (multi-index) | No | `.to_df()` on all list results |
+| **Data replay** | No | `data.replay(callback=)` | No | No | `replay_orderbook()`, `stream_trades()` |
+| **Error handling** | Poor (opaque HTTP errors, users complain about 429s) | Not documented | Not documented | Typed exceptions (429, 401, 400, 403) | Typed exception hierarchy |
+| **Retry/backoff** | `urllib3.util.Retry` built-in (429, 5xx) | Not documented | Not documented | None | `tenacity`-based, configurable |
+| **Market discovery** | `client.list_tickers()` with filtering | Metadata API | Per-asset listing | N/A | `list_markets()`, `list_events()` |
+| **Custom JSON parser** | Yes (`custom_json` param, orjson support) | Custom binary format (DBN) | No | No | orjson default (matches API server) |
+
+### Key Takeaways from Competitor Analysis
+
+1. **Polygon's auto-pagination is the gold standard** for iterator-based data access. Copy this pattern exactly for /deltas and /trades.
+2. **Databento's replay() is the gold standard** for event-driven historical data processing. Adapt this pattern for `replay_orderbook()`.
+3. **Alpaca's per-asset-class client split is unnecessarily complex** for KalshiBook's simpler API surface. Use a single client class.
+4. **Tavily's error handling is best-in-class** among these SDKs -- specific exception types for each error category. Polygon's lack of error handling is a known pain point.
+5. **DataFrame conversion is expected** by financial data users. Databento and Alpaca both provide it. Polygon's lack of it is notable.
+6. **Nobody provides both replay AND auto-pagination AND typed errors.** There is an opportunity to be best-in-class across all three dimensions simultaneously.
 
 ## Sources
 
-### Market Data APIs
-- [Polygon.io/Massive](https://massive.com/) — Stock market data API, rebranded from Polygon.io. REST + WebSocket + flat files. SDKs in Python/JS/Go/Java. (MEDIUM confidence — fetched 2026-02-13)
-- [Polygon.io Pricing](https://massive.com/pricing) — Free tier (5 calls/min), Starter $29/mo, Developer $79/mo, Advanced $200/mo. (MEDIUM confidence — pricing page was JS-rendered, data from search results)
-- [Databento](https://databento.com/) — MBO/MBP schemas, $125 free credit, usage-based pricing, Python/C++/Rust clients. (MEDIUM confidence — fetched 2026-02-13)
-- [Databento Schemas](https://databento.com/docs/schemas-and-data-formats) — MBO, MBP-1, MBP-10 schemas for orderbook data. (MEDIUM confidence — from search results)
-- [Databento MBO Snapshots](https://databento.com/blog/live-MBO-snapshot) — Order book snapshots every minute for live data. (MEDIUM confidence — from search results)
-- [Tardis.dev](https://tardis.dev/) — Crypto orderbook replay, 5,000+ TB historical data, 200,000+ instruments. (HIGH confidence — successfully fetched)
-- [Tardis.dev HTTP API](https://docs.tardis.dev/api/http) — NDJSON format, minute-by-minute historical data, Bearer token auth. (HIGH confidence — successfully fetched)
-- [Alpaca Market Data](https://docs.alpaca.markets/docs/about-market-data-api) — REST + WebSocket, trades/quotes/bars, crypto orderbook streaming. (MEDIUM confidence — from search results)
+### Primary (HIGH confidence -- reviewed source code / official docs)
+- [Polygon.io Python Client (GitHub)](https://github.com/polygon-io/client-python) -- pagination pattern, RESTClient architecture, retry configuration
+- [Polygon Advanced Usage (DeepWiki)](https://deepwiki.com/polygon-io/client-python/7-advanced-usage) -- pagination internals, error handling strategies, custom JSON
+- [Tavily Python Client (GitHub)](https://github.com/tavily-ai/tavily-python) -- error handling hierarchy, client init pattern, sync/async split
+- [Databento Python Client (GitHub)](https://github.com/databento/databento-python) -- replay() pattern, DataFrame conversion, Historical client
+- [Alpaca-py (GitHub)](https://github.com/alpacahq/alpaca-py) -- request object pattern, per-asset clients, Pydantic usage
+- [HTTPX Async Docs](https://www.python-httpx.org/async/) -- AsyncClient context manager, connection pooling
+- KalshiBook API source code (reviewed directly) -- endpoint shapes, pagination cursors, response models
 
-### Agent-Friendly APIs
-- [Tavily](https://www.tavily.com/) — AI agent search API. Credit-based pricing, structured JSON responses. (HIGH confidence — pricing page fetched)
-- [Tavily Pricing](https://www.tavily.com/pricing) — Free 1,000 credits, PAYG $0.008/credit, Project $30/mo, Enterprise custom. (HIGH confidence — successfully fetched)
-- [Tavily API Credits](https://docs.tavily.com/documentation/api-credits) — Basic search: 1 credit, Advanced: 2 credits. (HIGH confidence — successfully fetched)
-- [Exa AI](https://exa.ai/) — Semantic search API, $5/1,000 searches, enterprise tier. (MEDIUM confidence — from search results)
-- [Exa Pricing](https://exa.ai/pricing) — Pay-per-use, $10 free credits, enterprise custom. (MEDIUM confidence — from search results)
+### Secondary (MEDIUM confidence -- multiple sources agree)
+- [Databento Example Use Cases (DeepWiki)](https://deepwiki.com/databento/databento-python/7-example-use-cases) -- replay and iterator patterns
+- [Tenacity retry library (GitHub)](https://github.com/jd/tenacity) -- retry/backoff patterns for Python SDKs
+- [Alpaca Market Data Docs](https://alpaca.markets/sdks/python/market_data.html) -- historical data client patterns
 
-### Prediction Market APIs
-- [Kalshi Orderbook Responses](https://docs.kalshi.com/getting_started/orderbook_responses) — Bids-only model, [price, quantity] pairs, ascending order. (HIGH confidence — successfully fetched)
-- [Kalshi WebSocket Orderbook](https://docs.kalshi.com/websockets/orderbook-updates) — Snapshot + delta model, requires auth. (HIGH confidence — partially fetched)
-- [FinFeedAPI Prediction Markets](https://www.finfeedapi.com/products/prediction-markets-api) — Cross-exchange prediction market data aggregation. (LOW confidence — 403 blocked)
-- [Polymarket API Architecture](https://medium.com/@gwrx2005/the-polymarket-api-architecture-endpoints-and-use-cases-f1d88fa6c1bf) — CLOB API, batch orders, WebSocket feeds. (MEDIUM confidence — from search results)
-
-### Agent-Friendly API Design
-- [How to make APIs ready for AI agents](https://www.digitalapi.ai/blogs/how-to-make-your-apis-ready-for-ai-agents) — OpenAPI 3.0+, self-describing endpoints, deterministic responses, MCP servers. (HIGH confidence — successfully fetched)
-- [MCP Servers for Financial Data](https://medium.com/predict/top-5-mcp-servers-for-financial-data-in-2026-5bf45c2c559d) — Alpha Vantage, FMP, Polymarket MCP servers exist. (MEDIUM confidence — from search results)
-- [Polygon.io MCP Server](https://www.pulsemcp.com/servers/polygon) — Official Polygon MCP server available. (MEDIUM confidence — from search results)
-
-### API Monetization
-- [API Rate Limiting Best Practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/) — Per-key limits, response headers, multi-level limiting. (MEDIUM confidence — from search results)
+### Tertiary (LOW confidence -- needs validation)
+- DataFrame integration patterns from blog posts -- specific column naming conventions may vary
 
 ---
-*Feature research for: Monetized prediction market L2 orderbook data API*
-*Researched: 2026-02-13*
+*Feature research for: Python SDK + Backtesting Abstractions (KalshiBook)*
+*Researched: 2026-02-17*

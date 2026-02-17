@@ -398,22 +398,6 @@ class EventDetailResponse(BaseModel):
     response_time: float = Field(description="Server-side processing time in seconds")
 
 
-class SeriesRecord(BaseModel):
-    """Summary info for a series."""
-
-    ticker: str = Field(description="Unique series ticker")
-    title: str | None = Field(default=None, description="Series title")
-    frequency: str | None = Field(default=None, description="Release frequency")
-    category: str | None = Field(default=None, description="Series category")
-
-
-class SeriesResponse(BaseModel):
-    """List of series."""
-
-    data: list[SeriesRecord]
-    request_id: str
-    response_time: float = Field(description="Server-side processing time in seconds")
-
 
 # ---------------------------------------------------------------------------
 # Error models (for OpenAPI spec documentation)

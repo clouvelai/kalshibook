@@ -9,51 +9,59 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Data Collection
 
-- [ ] **DCOL-01**: System connects to Kalshi websocket and maintains persistent connection with automatic reconnection
-- [ ] **DCOL-02**: System subscribes to orderbook channel for active/liquid Kalshi markets
-- [ ] **DCOL-03**: System receives and stores initial orderbook snapshot per market with timestamp
-- [ ] **DCOL-04**: System receives and stores all subsequent orderbook deltas with timestamps
-- [ ] **DCOL-05**: System validates sequence numbers on every delta and detects gaps
-- [ ] **DCOL-06**: System triggers re-snapshot when sequence gap detected (recovery)
-- [ ] **DCOL-07**: System auto-discovers new markets via market lifecycle websocket channel
-- [ ] **DCOL-08**: System auto-subscribes to newly discovered active markets
+- [x] **DCOL-01**: System connects to Kalshi websocket and maintains persistent connection with automatic reconnection
+- [x] **DCOL-02**: System subscribes to orderbook channel for active/liquid Kalshi markets
+- [x] **DCOL-03**: System receives and stores initial orderbook snapshot per market with timestamp
+- [x] **DCOL-04**: System receives and stores all subsequent orderbook deltas with timestamps
+- [x] **DCOL-05**: System validates sequence numbers on every delta and detects gaps
+- [x] **DCOL-06**: System triggers re-snapshot when sequence gap detected (recovery)
+- [x] **DCOL-07**: System auto-discovers new markets via market lifecycle websocket channel
+- [x] **DCOL-08**: System auto-subscribes to newly discovered active markets
 
 ### Data Serving
 
-- [ ] **DSRV-01**: User can query reconstructed orderbook state at any historical timestamp for a given market
-- [ ] **DSRV-02**: User can query raw orderbook deltas by market and time range (paginated)
-- [ ] **DSRV-03**: User can list available markets with data coverage dates
-- [ ] **DSRV-04**: User can query market metadata (event info, contract specs)
-- [ ] **DSRV-05**: All API responses use consistent JSON format with structured error envelope
+- [x] **DSRV-01**: User can query reconstructed orderbook state at any historical timestamp for a given market
+- [x] **DSRV-02**: User can query raw orderbook deltas by market and time range (paginated)
+- [x] **DSRV-03**: User can list available markets with data coverage dates
+- [x] **DSRV-04**: User can query market metadata (event info, contract specs)
+- [x] **DSRV-05**: All API responses use consistent JSON format with structured error envelope
 
 ### Authentication & Access Control
 
-- [ ] **AUTH-01**: User can create account (email/password via Supabase Auth)
-- [ ] **AUTH-02**: User can generate API keys from dashboard
-- [ ] **AUTH-03**: API validates `X-API-Key` header on every request
-- [ ] **AUTH-04**: Per-key rate limiting enforced with standard response headers
+- [x] **AUTH-01**: User can create account (email/password via Supabase Auth)
+- [x] **AUTH-02**: User can generate API keys from dashboard
+- [x] **AUTH-03**: API validates `X-API-Key` header on every request
+- [x] **AUTH-04**: Per-key rate limiting enforced with standard response headers
 
 ### Billing & Monetization
 
-- [ ] **BILL-01**: Credit-based pricing: each API operation costs defined credits
-- [ ] **BILL-02**: Free tier: 1,000 credits/month (no credit card required)
-- [ ] **BILL-03**: Pay-as-you-go tier via Stripe
-- [ ] **BILL-04**: Project tier with monthly credit allocation via Stripe
-- [ ] **BILL-05**: Usage metering tracks credits consumed per API key
-- [ ] **BILL-06**: Access blocked when credits exhausted (with clear error message)
+- [x] **BILL-01**: Credit-based pricing: each API operation costs defined credits
+- [x] **BILL-02**: Free tier: 1,000 credits/month (no credit card required)
+- [x] **BILL-03**: Pay-as-you-go tier via Stripe
+- [x] **BILL-04**: Project tier with monthly credit allocation via Stripe
+- [x] **BILL-05**: Usage metering tracks credits consumed per API key
+- [x] **BILL-06**: Access blocked when credits exhausted (with clear error message)
 
 ### Developer Experience
 
-- [ ] **DEVX-01**: OpenAPI 3.1 spec auto-generated and served at `/openapi.json`
-- [ ] **DEVX-02**: API documentation page hosted (Swagger/Redoc)
-- [ ] **DEVX-03**: `/llms.txt` and `/llms-full.txt` discovery files for AI agents
-- [ ] **DEVX-04**: Agent-friendly response design (flat JSON, natural language field names, contextual metadata)
+- [x] **DEVX-01**: OpenAPI 3.1 spec auto-generated and served at `/openapi.json`
+- [x] **DEVX-02**: API documentation page hosted (Swagger/Redoc)
+- [x] **DEVX-03**: `/llms.txt` and `/llms-full.txt` discovery files for AI agents
+- [x] **DEVX-04**: Agent-friendly response design (flat JSON, natural language field names, contextual metadata)
+- [x] **DEVX-05**: Interactive API playground in dashboard for testing endpoints
+
+### Backtesting
+
+- [x] **BKTS-01**: Collector captures public trade executions and trade history is queryable via API
+- [x] **BKTS-02**: Settlement/resolution data normalized and queryable
+- [x] **BKTS-03**: Candlestick data available at 1m, 1h, 1d intervals
+- [x] **BKTS-04**: Event/market hierarchy exposed via API
 
 ### Dashboard
 
-- [ ] **DASH-01**: User can view and manage API keys (create, revoke)
-- [ ] **DASH-02**: User can view current usage and remaining credits
-- [ ] **DASH-03**: User can manage billing (link to Stripe customer portal)
+- [x] **DASH-01**: User can view and manage API keys (create, revoke)
+- [x] **DASH-02**: User can view current usage and remaining credits
+- [x] **DASH-03**: User can manage billing (link to Stripe customer portal)
 
 ## v2 Requirements
 
@@ -97,42 +105,47 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DCOL-01 | Phase 1 | Pending |
-| DCOL-02 | Phase 1 | Pending |
-| DCOL-03 | Phase 1 | Pending |
-| DCOL-04 | Phase 1 | Pending |
-| DCOL-05 | Phase 1 | Pending |
-| DCOL-06 | Phase 1 | Pending |
-| DCOL-07 | Phase 1 | Pending |
-| DCOL-08 | Phase 1 | Pending |
-| DSRV-01 | Phase 2 | Pending |
-| DSRV-02 | Phase 2 | Pending |
-| DSRV-03 | Phase 2 | Pending |
-| DSRV-04 | Phase 2 | Pending |
-| DSRV-05 | Phase 2 | Pending |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| AUTH-04 | Phase 2 | Pending |
-| DEVX-01 | Phase 2 | Pending |
-| DEVX-02 | Phase 2 | Pending |
-| DEVX-03 | Phase 2 | Pending |
-| DEVX-04 | Phase 2 | Pending |
-| BILL-01 | Phase 3 | Pending |
-| BILL-02 | Phase 3 | Pending |
-| BILL-03 | Phase 3 | Pending |
-| BILL-04 | Phase 3 | Pending |
-| BILL-05 | Phase 3 | Pending |
-| BILL-06 | Phase 3 | Pending |
-| DASH-01 | Phase 5 | Pending |
-| DASH-02 | Phase 5 | Pending |
-| DASH-03 | Phase 5 | Pending |
+| DCOL-01 | Phase 1 | Complete |
+| DCOL-02 | Phase 1 | Complete |
+| DCOL-03 | Phase 1 | Complete |
+| DCOL-04 | Phase 1 | Complete |
+| DCOL-05 | Phase 1 | Complete |
+| DCOL-06 | Phase 1 | Complete |
+| DCOL-07 | Phase 1 | Complete |
+| DCOL-08 | Phase 1 | Complete |
+| DSRV-01 | Phase 2 | Complete |
+| DSRV-02 | Phase 2 | Complete |
+| DSRV-03 | Phase 2 | Complete |
+| DSRV-04 | Phase 2 | Complete |
+| DSRV-05 | Phase 2 | Complete |
+| AUTH-01 | Phase 2 | Complete |
+| AUTH-02 | Phase 2 | Complete |
+| AUTH-03 | Phase 2 | Complete |
+| AUTH-04 | Phase 2 | Complete |
+| DEVX-01 | Phase 2 | Complete |
+| DEVX-02 | Phase 2 | Complete |
+| DEVX-03 | Phase 2 | Complete |
+| DEVX-04 | Phase 2 | Complete |
+| BILL-01 | Phase 3 | Complete |
+| BILL-02 | Phase 3 | Complete |
+| BILL-03 | Phase 3 | Complete |
+| BILL-04 | Phase 3 | Complete |
+| BILL-05 | Phase 3 | Complete |
+| BILL-06 | Phase 3 | Complete |
+| BKTS-01 | Phase 4 | Complete |
+| BKTS-02 | Phase 4 | Complete |
+| BKTS-03 | Phase 4 | Complete |
+| BKTS-04 | Phase 4 | Complete |
+| DEVX-05 | Phase 6 | Complete |
+| DASH-01 | Phase 5 | Complete |
+| DASH-02 | Phase 5 | Complete |
+| DASH-03 | Phase 5 | Complete |
 
 **Coverage:**
-- v1 requirements: 30 total (STRM-01/02 moved to v2)
-- Mapped to phases: 30
+- v1 requirements: 35 total (30 original + 4 BKTS + 1 DEVX-05)
+- Mapped to phases: 35
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-13*
-*Last updated: 2026-02-13 after roadmap creation*
+*Last updated: 2026-02-16 after v1 cleanup phase*

@@ -37,5 +37,5 @@ kalshi_private_key.pem
 
 # Misc
 *.log
-coverage/
+/coverage/
 .pytest_cache/

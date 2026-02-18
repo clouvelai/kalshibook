@@ -30,7 +30,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full details.
 - [ ] **Phase 9: Models, Exceptions, and HTTP Transport** - Typed response models, exception hierarchy, httpx transport with auth/retry/credits
 - [x] **Phase 10: Client Class and Data Endpoints** - KalshiBook client with sync/async, all non-paginated endpoint methods (completed 2026-02-17)
 - [x] **Phase 11: Pagination and DataFrame Support** - Auto-paginating async generators for cursor endpoints, .to_df() conversion (completed 2026-02-17)
-- [ ] **Phase 12: Documentation and PyPI Publishing** - mkdocs-material docs site, API reference, Getting Started guide, publish to PyPI
+- [x] **Phase 12: Documentation and PyPI Publishing** - mkdocs-material docs site, API reference, Getting Started guide, publish to PyPI (completed 2026-02-18)
 
 ## Phase Details
 
@@ -102,7 +102,7 @@ Plans:
   2. API reference documentation is auto-generated from docstrings and covers all public methods
   3. `pip install kalshibook` installs the published package from PyPI
   4. The published package passes `mypy --strict` type checking in consumer code (py.typed works end-to-end)
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 12-01-PLAN.md -- Docs infrastructure (mkdocs-material, mkdocstrings, gen_ref_pages.py) and version single-source fix
 - [ ] 12-02-PLAN.md -- Hand-written docs content (Getting Started, Authentication, endpoint examples, README)
@@ -126,4 +126,4 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 9. Models, Exceptions, and HTTP Transport | v1.1 | 0/3 | Planned | - |
 | 10. Client Class and Data Endpoints | v1.1 | Complete    | 2026-02-17 | - |
 | 11. Pagination and DataFrame Support | v1.1 | Complete    | 2026-02-17 | - |
-| 12. Documentation and PyPI Publishing | v1.1 | 0/? | Not started | - |
+| 12. Documentation and PyPI Publishing | v1.1 | Complete    | 2026-02-18 | - |

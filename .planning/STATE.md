@@ -10,20 +10,24 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 13 of 15 (Market Coverage Discovery)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-18 — Roadmap created for v1.2
+Plan: 1 of 2 complete
+Status: Executing phase
+Last activity: 2026-02-18 — Completed 13-01 coverage backend
 
-Progress: [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0%
+Progress: [===============░░░░░░░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29
+- Total plans completed: 30
 - Average duration: 3min
-- Total execution time: ~1.0 hours
+- Total execution time: ~1.1 hours
 
-*Carried forward from v1.1*
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 13    | 01   | 3min     | 2     | 4     |
+
+*Prior metrics carried forward from v1.1*
 
 ## Accumulated Context
 
@@ -32,11 +36,17 @@ Progress: [░░░░░░░░░░░░░░░░░░░░░░░
 All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions tables with outcomes.
 
 v1.2 research decisions:
-- Coverage must use materialized view (not live partition scans) — performance at scale
+- Coverage must use materialized view (not live partition scans) -- performance at scale
 - Coverage modeled as segments (contiguous ranges with gaps), not first/last timestamps
-- Depth chart must use Canvas (not SVG) — future animation support, no rewrite path from SVG
-- Playground demos must cost zero credits — dashboard-internal endpoint or pre-baked responses
-- Replay animation deferred to v1.3 — ship static depth chart first
+- Depth chart must use Canvas (not SVG) -- future animation support, no rewrite path from SVG
+- Playground demos must cost zero credits -- dashboard-internal endpoint or pre-baked responses
+- Replay animation deferred to v1.3 -- ship static depth chart first
+
+v1.2 execution decisions (Phase 13):
+- Gaps-and-islands SQL pattern for segment detection -- avoids false single-range reporting
+- Advisory lock on refresh prevents concurrent refresh conflicts without blocking reads
+- Event-level pagination (not market-level) -- dashboard shows events as groups
+- JWT auth only on coverage endpoints -- no credit deduction for dashboard-internal use
 
 ### Pending Todos
 
@@ -51,6 +61,6 @@ v1.2 research decisions:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 13 context gathered
-Resume: `/gsd:plan-phase 13` to plan Market Coverage Discovery
-Resume file: .planning/phases/13-market-coverage-discovery/13-CONTEXT.md
+Stopped at: Completed 13-01-PLAN.md (coverage backend)
+Resume: `/gsd:execute-phase 13` to execute 13-02 (coverage dashboard)
+Resume file: .planning/phases/13-market-coverage-discovery/13-01-SUMMARY.md

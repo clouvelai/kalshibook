@@ -3,6 +3,7 @@
 import { usePlayground } from "@/components/playground/use-playground";
 import { PlaygroundForm } from "@/components/playground/playground-form";
 import { CodePanel } from "@/components/playground/code-panel";
+import { ExampleCards } from "@/components/playground/example-cards";
 
 export default function PlaygroundPage() {
   const playground = usePlayground();
@@ -18,9 +19,15 @@ export default function PlaygroundPage() {
           Test API endpoints and see generated code
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Requests from the playground use your API credits
+          Try the examples below for free, or use your API key for custom queries
         </p>
       </div>
+
+      {/* Example cards */}
+      <ExampleCards
+        onExecute={playground.handleDemoResult}
+        onError={(msg) => playground.setRequestError(msg)}
+      />
 
       {/* Split-panel layout */}
       <div className="flex flex-col lg:flex-row gap-6">
@@ -37,7 +44,6 @@ export default function PlaygroundPage() {
             onSelectKey={playground.selectKey}
             onSetField={playground.setField}
             onSendRequest={playground.sendRequest}
-            onFillExample={playground.fillExample}
           />
           {playground.requestError && (
             <p className="text-sm text-destructive mt-3">{playground.requestError}</p>

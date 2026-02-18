@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TickerCombobox } from "@/components/playground/ticker-combobox";
 import {
   Select,
   SelectContent,
@@ -33,7 +34,6 @@ interface PlaygroundFormProps {
   onSelectKey: (keyId: string, keyPrefix: string) => void;
   onSetField: (field: "marketTicker" | "timestamp" | "depth", value: string) => void;
   onSendRequest: () => void;
-  onFillExample: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,6 @@ export function PlaygroundForm({
   onSelectKey,
   onSetField,
   onSendRequest,
-  onFillExample,
 }: PlaygroundFormProps) {
   const [additionalOpen, setAdditionalOpen] = useState(false);
 
@@ -89,15 +88,13 @@ export function PlaygroundForm({
 
       {/* Market Ticker */}
       <div className="space-y-2">
-        <Label htmlFor="market-ticker">
+        <Label>
           Market Ticker <span className="text-destructive">*</span>
         </Label>
-        <Input
-          id="market-ticker"
+        <TickerCombobox
           value={marketTicker}
-          onChange={(e) => onSetField("marketTicker", e.target.value)}
-          placeholder="e.g. KXBTC-25FEB14-T96074.99"
-          className="text-base md:text-base"
+          onSelect={(market) => onSetField("marketTicker", market.ticker)}
+          onChange={(value) => onSetField("marketTicker", value)}
         />
       </div>
 
@@ -147,15 +144,6 @@ export function PlaygroundForm({
           </div>
         )}
       </div>
-
-      {/* Try an example */}
-      <button
-        type="button"
-        onClick={onFillExample}
-        className="text-sm text-primary hover:underline"
-      >
-        Try an example
-      </button>
 
       {/* Send Request */}
       <Button

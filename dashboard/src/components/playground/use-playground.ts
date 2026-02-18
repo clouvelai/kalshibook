@@ -77,8 +77,9 @@ export interface PlaygroundActions {
   setField: (field: "marketTicker" | "timestamp" | "depth", value: string) => void;
   selectKey: (keyId: string, keyPrefix: string) => void;
   sendRequest: () => Promise<void>;
-  fillExample: () => void;
   setActiveTab: (tab: ActiveTab) => void;
+  handleDemoResult: (result: import("@/types/api").DemoResponse) => void;
+  setRequestError: (msg: string | null) => void;
 }
 
 export function usePlayground(): PlaygroundState & PlaygroundActions {
@@ -253,11 +254,19 @@ export function usePlayground(): PlaygroundState & PlaygroundActions {
     }
   }, [revealedKey, marketTicker, timestamp, depth]);
 
-  const fillExample = useCallback(() => {
-    setMarketTicker("KXBTC-25FEB14-T96074.99");
-    setTimestamp("2025-02-14T18:00:00Z");
-    setDepth("10");
-  }, []);
+  const handleDemoResult = useCallback(
+    (result: import("@/types/api").DemoResponse) => {
+      setResponse({
+        data: result.data,
+        status: 200,
+        responseTime: Math.round(result.response_time * 1000),
+        creditsDeducted: 0,
+        creditsRemaining: null,
+      });
+      setActiveTab("response");
+    },
+    []
+  );
 
   return {
     // State
@@ -280,7 +289,8 @@ export function usePlayground(): PlaygroundState & PlaygroundActions {
     setField,
     selectKey,
     sendRequest,
-    fillExample,
     setActiveTab,
+    handleDemoResult,
+    setRequestError,
   };
 }

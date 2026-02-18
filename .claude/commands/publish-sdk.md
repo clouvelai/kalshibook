@@ -1,37 +1,60 @@
 # Publish KalshiBook SDK to PyPI
 
-Build, verify, and publish the SDK package. Requires `UV_PUBLISH_TOKEN` env var (PyPI API token).
+Bump version, verify the build locally, then create a GitHub release which triggers automated publishing to PyPI via trusted publisher (OIDC — no tokens needed).
 
 ## Steps
 
-1. **Build** the package:
+1. **Bump version** in `sdk/src/kalshibook/_version.py`:
+   - Read the current version
+   - Ask the user what the new version should be (e.g., 0.2.0, 0.1.1)
+   - Update `_version.py` with the new version string
+
+2. **Build and verify locally:**
    ```bash
    uv build --package kalshibook
    ```
+   Then verify:
+   - py.typed is in the wheel: `python -c "import zipfile, glob; whl=glob.glob('dist/*.whl')[0]; z=zipfile.ZipFile(whl); assert any('py.typed' in n for n in z.namelist()); print('py.typed OK')"`
+   - Package imports: `uv venv /tmp/kb-verify && uv pip install --python /tmp/kb-verify/bin/python dist/kalshibook-*.whl && /tmp/kb-verify/bin/python -c "from kalshibook import KalshiBook, __version__; print(f'v{__version__} OK')" && rm -rf /tmp/kb-verify`
+   - Tests pass: `uv run --package kalshibook pytest sdk/tests/ -x -q`
 
-2. **Verify** the wheel:
-   - py.typed is included
-   - Package installs and imports in a temp venv
-   - Version string is correct
-
-3. **Publish** to PyPI:
+3. **Commit the version bump:**
    ```bash
-   uv publish sdk/dist/* --token "$UV_PUBLISH_TOKEN"
+   git add sdk/src/kalshibook/_version.py
+   git commit -m "chore: bump kalshibook to vX.Y.Z"
+   git push origin main
    ```
 
-4. **Verify** the published package:
+4. **Create a GitHub release** (this triggers the publish workflow):
    ```bash
-   pip install --upgrade kalshibook
-   python -c "from kalshibook import KalshiBook, __version__; print(f'kalshibook {__version__} installed from PyPI')"
+   gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
    ```
 
-## First-time setup
+5. **Watch the publish workflow:**
+   ```bash
+   gh run list --workflow publish.yml --limit 1
+   gh run watch <run-id>
+   ```
 
-If `UV_PUBLISH_TOKEN` is not set:
-1. Tell the user to create a PyPI API token at https://pypi.org/manage/account/token/
-2. Add `UV_PUBLISH_TOKEN=pypi-...` to their shell profile or `.env`
-3. Re-run this command
+6. **Verify on PyPI:**
+   ```bash
+   uv venv /tmp/kb-verify && uv pip install --python /tmp/kb-verify/bin/python kalshibook && /tmp/kb-verify/bin/python -c "from kalshibook import __version__; print(f'PyPI: v{__version__}')" && rm -rf /tmp/kb-verify
+   ```
 
-## Version bumps
+## How it works
 
-Before publishing a new version, update `sdk/src/kalshibook/_version.py` with the new version string. The version flows to `__init__.py`, `_http.py` User-Agent, and `pyproject.toml` (via dynamic version) automatically.
+- `publish.yml` triggers on GitHub release creation
+- Build job: `uv build --package kalshibook` → uploads wheel as artifact
+- Publish job: downloads artifact → publishes to PyPI via OIDC trusted publisher
+- No API tokens or secrets needed — PyPI trusts the GitHub Actions workflow directly
+- Trusted publisher configured at pypi.org (Owner: clouvelai, Repo: kalshibook, Workflow: publish.yml, Environment: pypi)
+
+## Architecture
+
+```
+_version.py  ←── single source of truth
+    ↓
+__init__.py  ←── re-exports __version__
+_http.py     ←── uses in User-Agent header
+pyproject.toml ←── reads via setuptools (if dynamic versioning added later)
+```

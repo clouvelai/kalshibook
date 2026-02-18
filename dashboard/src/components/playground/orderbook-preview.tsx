@@ -4,12 +4,12 @@
 // OrderbookPreview -- side-by-side yes/no orderbook table for Preview tab
 // ---------------------------------------------------------------------------
 
-interface OrderbookLevel {
+export interface OrderbookLevel {
   price: number;
   quantity: number;
 }
 
-interface OrderbookData {
+export interface OrderbookData {
   yes: OrderbookLevel[];
   no: OrderbookLevel[];
   market_ticker?: string;
@@ -18,7 +18,7 @@ interface OrderbookData {
   deltas_applied?: number;
 }
 
-function isOrderbookData(data: unknown): data is OrderbookData {
+export function isOrderbookData(data: unknown): data is OrderbookData {
   if (typeof data !== "object" || data === null) return false;
   const obj = data as Record<string, unknown>;
   return Array.isArray(obj.yes) && Array.isArray(obj.no);

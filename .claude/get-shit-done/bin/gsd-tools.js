@@ -26,6 +26,8 @@
  *   summary-extract <path> [--fields]  Extract structured data from SUMMARY.md
  *   state-snapshot                     Structured parse of STATE.md
  *   phase-plan-index <phase>           Index plans with waves and status
+ *   websearch <query>                  Search web via Brave API (if configured)
+ *     [--limit N] [--freshness day|week|month]
  *
  * Phase Operations:
  *   phase next-decimal <phase>         Calculate next decimal phase number
@@ -37,6 +39,7 @@
  * Roadmap Operations:
  *   roadmap get-phase <phase>          Extract phase section from ROADMAP.md
  *   roadmap analyze                    Full roadmap parse with disk status
+ *   roadmap update-plan-progress <N>   Update progress table row from disk (PLAN vs SUMMARY counts)
  *
  * Milestone Operations:
  *   milestone complete <version>       Archive milestone, create MILESTONES.md
@@ -165,6 +168,7 @@ function loadConfig(cwd) {
     plan_checker: true,
     verifier: true,
     parallelization: true,
+    brave_search: false,
   };
 
   try {
@@ -197,6 +201,7 @@ function loadConfig(cwd) {
       plan_checker: get('plan_checker', { section: 'workflow', field: 'plan_check' }) ?? defaults.plan_checker,
       verifier: get('verifier', { section: 'workflow', field: 'verifier' }) ?? defaults.verifier,
       parallelization,
+      brave_search: get('brave_search') ?? defaults.brave_search,
     };
   } catch {
     return defaults;
@@ -584,6 +589,11 @@ function cmdConfigEnsureSection(cwd, raw) {
     return;
   }
 
+  // Detect Brave Search API key availability
+  const homedir = require('os').homedir();
+  const braveKeyFile = path.join(homedir, '.gsd', 'brave_api_key');
+  const hasBraveSearch = !!(process.env.BRAVE_API_KEY || fs.existsSync(braveKeyFile));
+
   // Create default config
   const defaults = {
     model_profile: 'balanced',
@@ -598,6 +608,7 @@ function cmdConfigEnsureSection(cwd, raw) {
       verifier: true,
     },
     parallelization: true,
+    brave_search: hasBraveSearch,
   };
 
   try {
@@ -825,14 +836,33 @@ function cmdRoadmapGetPhase(cwd, phaseNum, raw) {
     // Escape special regex chars in phase number, handle decimal
     const escapedPhase = phaseNum.replace(/\./g, '\\.');
 
-    // Match "### Phase X:" or "### Phase X.Y:" with optional name
+    // Match "## Phase X:" or "### Phase X:" with optional name
     const phasePattern = new RegExp(
-      `###\\s*Phase\\s+${escapedPhase}:\\s*([^\\n]+)`,
+      `#{2,3}\\s*Phase\\s+${escapedPhase}:\\s*([^\\n]+)`,
       'i'
     );
     const headerMatch = content.match(phasePattern);
 
     if (!headerMatch) {
+      // Fallback: check if phase exists in summary list but missing detail section
+      const checklistPattern = new RegExp(
+        `-\\s*\\[[ x]\\]\\s*\\*\\*Phase\\s+${escapedPhase}:\\s*([^*]+)\\*\\*`,
+        'i'
+      );
+      const checklistMatch = content.match(checklistPattern);
+
+      if (checklistMatch) {
+        // Phase exists in summary but missing detail section - malformed ROADMAP
+        output({
+          found: false,
+          phase_number: phaseNum,
+          phase_name: checklistMatch[1].trim(),
+          error: 'malformed_roadmap',
+          message: `Phase ${phaseNum} exists in summary list but missing "### Phase ${phaseNum}:" detail section. ROADMAP.md needs both formats.`
+        }, raw, '');
+        return;
+      }
+
       output({ found: false, phase_number: phaseNum }, raw, '');
       return;
     }
@@ -840,9 +870,9 @@ function cmdRoadmapGetPhase(cwd, phaseNum, raw) {
     const phaseName = headerMatch[1].trim();
     const headerIndex = headerMatch.index;
 
-    // Find the end of this section (next ### or end of file)
+    // Find the end of this section (next ## or ### phase header, or end of file)
     const restOfContent = content.slice(headerIndex);
-    const nextHeaderMatch = restOfContent.match(/\n###\s+Phase\s+\d/i);
+    const nextHeaderMatch = restOfContent.match(/\n#{2,3}\s+Phase\s+\d/i);
     const sectionEnd = nextHeaderMatch
       ? headerIndex + nextHeaderMatch.index
       : content.length;
@@ -853,12 +883,19 @@ function cmdRoadmapGetPhase(cwd, phaseNum, raw) {
     const goalMatch = section.match(/\*\*Goal:\*\*\s*([^\n]+)/i);
     const goal = goalMatch ? goalMatch[1].trim() : null;
 
+    // Extract success criteria as structured array
+    const criteriaMatch = section.match(/\*\*Success Criteria\*\*[^\n]*:\s*\n((?:\s*\d+\.\s*[^\n]+\n?)+)/i);
+    const success_criteria = criteriaMatch
+      ? criteriaMatch[1].trim().split('\n').map(line => line.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean)
+      : [];
+
     output(
       {
         found: true,
         phase_number: phaseNum,
         phase_name: phaseName,
         goal,
+        success_criteria,
         section,
       },
       raw,
@@ -1318,7 +1355,8 @@ function cmdResolveModel(cwd, agentType, raw) {
     return;
   }
 
-  const model = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  const resolved = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  const model = resolved === 'opus' ? 'inherit' : resolved;
   const result = { model, profile };
   output(result, raw, model);
 }
@@ -1987,6 +2025,70 @@ function cmdSummaryExtract(cwd, summaryPath, fields, raw) {
   output(fullResult, raw);
 }
 
+// ─── Web Search (Brave API) ──────────────────────────────────────────────────
+
+async function cmdWebsearch(query, options, raw) {
+  const apiKey = process.env.BRAVE_API_KEY;
+
+  if (!apiKey) {
+    // No key = silent skip, agent falls back to built-in WebSearch
+    output({ available: false, reason: 'BRAVE_API_KEY not set' }, raw, '');
+    return;
+  }
+
+  if (!query) {
+    output({ available: false, error: 'Query required' }, raw, '');
+    return;
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    count: String(options.limit || 10),
+    country: 'us',
+    search_lang: 'en',
+    text_decorations: 'false'
+  });
+
+  if (options.freshness) {
+    params.set('freshness', options.freshness);
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.search.brave.com/res/v1/web/search?${params}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': apiKey
+        }
+      }
+    );
+
+    if (!response.ok) {
+      output({ available: false, error: `API error: ${response.status}` }, raw, '');
+      return;
+    }
+
+    const data = await response.json();
+
+    const results = (data.web?.results || []).map(r => ({
+      title: r.title,
+      url: r.url,
+      description: r.description,
+      age: r.age || null
+    }));
+
+    output({
+      available: true,
+      query,
+      count: results.length,
+      results
+    }, raw, results.map(r => `${r.title}\n${r.url}\n${r.description}`).join('\n\n'));
+  } catch (err) {
+    output({ available: false, error: err.message }, raw, '');
+  }
+}
+
 // ─── Frontmatter CRUD ────────────────────────────────────────────────────────
 
 function cmdFrontmatterGet(cwd, filePath, field, raw) {
@@ -2356,8 +2458,8 @@ function cmdRoadmapAnalyze(cwd, raw) {
   const content = fs.readFileSync(roadmapPath, 'utf-8');
   const phasesDir = path.join(cwd, '.planning', 'phases');
 
-  // Extract all phase headings: ### Phase N: Name
-  const phasePattern = /###\s*Phase\s+(\d+(?:\.\d+)?)\s*:\s*([^\n]+)/gi;
+  // Extract all phase headings: ## Phase N: Name or ### Phase N: Name
+  const phasePattern = /#{2,3}\s*Phase\s+(\d+(?:\.\d+)?)\s*:\s*([^\n]+)/gi;
   const phases = [];
   let match;
 
@@ -2368,7 +2470,7 @@ function cmdRoadmapAnalyze(cwd, raw) {
     // Extract goal from the section
     const sectionStart = match.index;
     const restOfContent = content.slice(sectionStart);
-    const nextHeader = restOfContent.match(/\n###\s+Phase\s+\d/i);
+    const nextHeader = restOfContent.match(/\n#{2,3}\s+Phase\s+\d/i);
     const sectionEnd = nextHeader ? sectionStart + nextHeader.index : content.length;
     const section = content.slice(sectionStart, sectionEnd);
 
@@ -2446,6 +2548,16 @@ function cmdRoadmapAnalyze(cwd, raw) {
   const totalSummaries = phases.reduce((sum, p) => sum + p.summary_count, 0);
   const completedPhases = phases.filter(p => p.disk_status === 'complete').length;
 
+  // Detect phases in summary list without detail sections (malformed ROADMAP)
+  const checklistPattern = /-\s*\[[ x]\]\s*\*\*Phase\s+(\d+(?:\.\d+)?)/gi;
+  const checklistPhases = new Set();
+  let checklistMatch;
+  while ((checklistMatch = checklistPattern.exec(content)) !== null) {
+    checklistPhases.add(checklistMatch[1]);
+  }
+  const detailPhases = new Set(phases.map(p => p.number));
+  const missingDetails = [...checklistPhases].filter(p => !detailPhases.has(p));
+
   const result = {
     milestones,
     phases,
@@ -2456,6 +2568,7 @@ function cmdRoadmapAnalyze(cwd, raw) {
     progress_percent: totalPlans > 0 ? Math.round((totalSummaries / totalPlans) * 100) : 0,
     current_phase: currentPhase ? currentPhase.number : null,
     next_phase: nextPhase ? nextPhase.number : null,
+    missing_phase_details: missingDetails.length > 0 ? missingDetails : null,
   };
 
   output(result, raw);
@@ -2477,7 +2590,7 @@ function cmdPhaseAdd(cwd, description, raw) {
   const slug = generateSlugInternal(description);
 
   // Find highest integer phase number
-  const phasePattern = /###\s*Phase\s+(\d+)(?:\.\d+)?:/gi;
+  const phasePattern = /#{2,3}\s*Phase\s+(\d+)(?:\.\d+)?:/gi;
   let maxPhase = 0;
   let m;
   while ((m = phasePattern.exec(content)) !== null) {
@@ -2535,7 +2648,7 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
 
   // Verify target phase exists
   const afterPhaseEscaped = afterPhase.replace(/\./g, '\\.');
-  const targetPattern = new RegExp(`###\\s*Phase\\s+${afterPhaseEscaped}:`, 'i');
+  const targetPattern = new RegExp(`#{2,3}\\s*Phase\\s+${afterPhaseEscaped}:`, 'i');
   if (!targetPattern.test(content)) {
     error(`Phase ${afterPhase} not found in ROADMAP.md`);
   }
@@ -2567,7 +2680,7 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
   const phaseEntry = `\n### Phase ${decimalPhase}: ${description} (INSERTED)\n\n**Goal:** [Urgent work - to be planned]\n**Depends on:** Phase ${afterPhase}\n**Plans:** 0 plans\n\nPlans:\n- [ ] TBD (run /gsd:plan-phase ${decimalPhase} to break down)\n`;
 
   // Insert after the target phase section
-  const headerPattern = new RegExp(`(###\\s*Phase\\s+${afterPhaseEscaped}:[^\\n]*\\n)`, 'i');
+  const headerPattern = new RegExp(`(#{2,3}\\s*Phase\\s+${afterPhaseEscaped}:[^\\n]*\\n)`, 'i');
   const headerMatch = content.match(headerPattern);
   if (!headerMatch) {
     error(`Could not find Phase ${afterPhase} header`);
@@ -2575,7 +2688,7 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
 
   const headerIdx = content.indexOf(headerMatch[0]);
   const afterHeader = content.slice(headerIdx + headerMatch[0].length);
-  const nextPhaseMatch = afterHeader.match(/\n###\s+Phase\s+\d/i);
+  const nextPhaseMatch = afterHeader.match(/\n#{2,3}\s+Phase\s+\d/i);
 
   let insertIdx;
   if (nextPhaseMatch) {
@@ -2758,7 +2871,7 @@ function cmdPhaseRemove(cwd, targetPhase, options, raw) {
   // Remove the target phase section
   const targetEscaped = targetPhase.replace(/\./g, '\\.');
   const sectionPattern = new RegExp(
-    `\\n?###\\s*Phase\\s+${targetEscaped}\\s*:[\\s\\S]*?(?=\\n###\\s+Phase\\s+\\d|$)`,
+    `\\n?#{2,3}\\s*Phase\\s+${targetEscaped}\\s*:[\\s\\S]*?(?=\\n#{2,3}\\s+Phase\\s+\\d|$)`,
     'i'
   );
   roadmapContent = roadmapContent.replace(sectionPattern, '');
@@ -2784,9 +2897,9 @@ function cmdPhaseRemove(cwd, targetPhase, options, raw) {
       const oldPad = oldStr.padStart(2, '0');
       const newPad = newStr.padStart(2, '0');
 
-      // Phase headings: ### Phase 18: → ### Phase 17:
+      // Phase headings: ## Phase 18: or ### Phase 18: → ## Phase 17: or ### Phase 17:
       roadmapContent = roadmapContent.replace(
-        new RegExp(`(###\\s*Phase\\s+)${oldStr}(\\s*:)`, 'gi'),
+        new RegExp(`(#{2,3}\\s*Phase\\s+)${oldStr}(\\s*:)`, 'gi'),
         `$1${newStr}$2`
       );
 
@@ -2851,6 +2964,82 @@ function cmdPhaseRemove(cwd, targetPhase, options, raw) {
   output(result, raw);
 }
 
+// ─── Roadmap Update Plan Progress ────────────────────────────────────────────
+
+function cmdRoadmapUpdatePlanProgress(cwd, phaseNum, raw) {
+  if (!phaseNum) {
+    error('phase number required for roadmap update-plan-progress');
+  }
+
+  const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
+
+  const phaseInfo = findPhaseInternal(cwd, phaseNum);
+  if (!phaseInfo) {
+    error(`Phase ${phaseNum} not found`);
+  }
+
+  const planCount = phaseInfo.plans.length;
+  const summaryCount = phaseInfo.summaries.length;
+
+  if (planCount === 0) {
+    output({ updated: false, reason: 'No plans found', plan_count: 0, summary_count: 0 }, raw, 'no plans');
+    return;
+  }
+
+  const isComplete = summaryCount >= planCount;
+  const status = isComplete ? 'Complete' : summaryCount > 0 ? 'In Progress' : 'Planned';
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!fs.existsSync(roadmapPath)) {
+    output({ updated: false, reason: 'ROADMAP.md not found', plan_count: planCount, summary_count: summaryCount }, raw, 'no roadmap');
+    return;
+  }
+
+  let roadmapContent = fs.readFileSync(roadmapPath, 'utf-8');
+  const phaseEscaped = phaseNum.replace('.', '\\.');
+
+  // Progress table row: update Plans column (summaries/plans) and Status column
+  const tablePattern = new RegExp(
+    `(\\|\\s*${phaseEscaped}\\.?\\s[^|]*\\|)[^|]*(\\|)\\s*[^|]*(\\|)\\s*[^|]*(\\|)`,
+    'i'
+  );
+  const dateField = isComplete ? ` ${today} ` : '  ';
+  roadmapContent = roadmapContent.replace(
+    tablePattern,
+    `$1 ${summaryCount}/${planCount} $2 ${status.padEnd(11)}$3${dateField}$4`
+  );
+
+  // Update plan count in phase detail section
+  const planCountPattern = new RegExp(
+    `(#{2,3}\\s*Phase\\s+${phaseEscaped}[\\s\\S]*?\\*\\*Plans:\\*\\*\\s*)[^\\n]+`,
+    'i'
+  );
+  const planCountText = isComplete
+    ? `${summaryCount}/${planCount} plans complete`
+    : `${summaryCount}/${planCount} plans executed`;
+  roadmapContent = roadmapContent.replace(planCountPattern, `$1${planCountText}`);
+
+  // If complete: check checkbox
+  if (isComplete) {
+    const checkboxPattern = new RegExp(
+      `(-\\s*\\[)[ ](\\]\\s*.*Phase\\s+${phaseEscaped}[:\\s][^\\n]*)`,
+      'i'
+    );
+    roadmapContent = roadmapContent.replace(checkboxPattern, `$1x$2 (completed ${today})`);
+  }
+
+  fs.writeFileSync(roadmapPath, roadmapContent, 'utf-8');
+
+  output({
+    updated: true,
+    phase: phaseNum,
+    plan_count: planCount,
+    summary_count: summaryCount,
+    status,
+    complete: isComplete,
+  }, raw, `${summaryCount}/${planCount} ${status}`);
+}
+
 // ─── Phase Complete (Transition) ──────────────────────────────────────────────
 
 function cmdPhaseComplete(cwd, phaseNum, raw) {
@@ -2897,7 +3086,7 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
 
     // Update plan count in phase section
     const planCountPattern = new RegExp(
-      `(###\\s*Phase\\s+${phaseEscaped}[\\s\\S]*?\\*\\*Plans:\\*\\*\\s*)[^\\n]+`,
+      `(#{2,3}\\s*Phase\\s+${phaseEscaped}[\\s\\S]*?\\*\\*Plans:\\*\\*\\s*)[^\\n]+`,
       'i'
     );
     roadmapContent = roadmapContent.replace(
@@ -2906,6 +3095,35 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
     );
 
     fs.writeFileSync(roadmapPath, roadmapContent, 'utf-8');
+
+    // Update REQUIREMENTS.md traceability for this phase's requirements
+    const reqPath = path.join(cwd, '.planning', 'REQUIREMENTS.md');
+    if (fs.existsSync(reqPath)) {
+      // Extract Requirements line from roadmap for this phase
+      const reqMatch = roadmapContent.match(
+        new RegExp(`Phase\\s+${phaseNum.replace('.', '\\.')}[\\s\\S]*?\\*\\*Requirements:\\*\\*\\s*([^\\n]+)`, 'i')
+      );
+
+      if (reqMatch) {
+        const reqIds = reqMatch[1].split(/[,\s]+/).map(r => r.trim()).filter(Boolean);
+        let reqContent = fs.readFileSync(reqPath, 'utf-8');
+
+        for (const reqId of reqIds) {
+          // Update checkbox: - [ ] **REQ-ID** → - [x] **REQ-ID**
+          reqContent = reqContent.replace(
+            new RegExp(`(-\\s*\\[)[ ](\\]\\s*\\*\\*${reqId}\\*\\*)`, 'gi'),
+            '$1x$2'
+          );
+          // Update traceability table: | REQ-ID | Phase N | Pending | → | REQ-ID | Phase N | Complete |
+          reqContent = reqContent.replace(
+            new RegExp(`(\\|\\s*${reqId}\\s*\\|[^|]+\\|)\\s*Pending\\s*(\\|)`, 'gi'),
+            '$1 Complete $2'
+          );
+        }
+
+        fs.writeFileSync(reqPath, reqContent, 'utf-8');
+      }
+    }
   }
 
   // Find next phase
@@ -3132,7 +3350,7 @@ function cmdValidateConsistency(cwd, raw) {
 
   // Extract phases from ROADMAP
   const roadmapPhases = new Set();
-  const phasePattern = /###\s*Phase\s+(\d+(?:\.\d+)?)\s*:/gi;
+  const phasePattern = /#{2,3}\s*Phase\s+(\d+(?:\.\d+)?)\s*:/gi;
   let m;
   while ((m = phasePattern.exec(roadmapContent)) !== null) {
     roadmapPhases.add(m[1]);
@@ -3405,7 +3623,8 @@ function resolveModelInternal(cwd, agentType) {
   const profile = config.model_profile || 'balanced';
   const agentModels = MODEL_PROFILES[agentType];
   if (!agentModels) return 'sonnet';
-  return agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  const resolved = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  return resolved === 'opus' ? 'inherit' : resolved;
 }
 
 function findPhaseInternal(cwd, phase) {
@@ -3453,6 +3672,40 @@ function findPhaseInternal(cwd, phase) {
       has_research: hasResearch,
       has_context: hasContext,
       has_verification: hasVerification,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getRoadmapPhaseInternal(cwd, phaseNum) {
+  if (!phaseNum) return null;
+  const roadmapPath = path.join(cwd, '.planning', 'ROADMAP.md');
+  if (!fs.existsSync(roadmapPath)) return null;
+
+  try {
+    const content = fs.readFileSync(roadmapPath, 'utf-8');
+    const escapedPhase = phaseNum.toString().replace(/\./g, '\\.');
+    const phasePattern = new RegExp(`#{2,3}\\s*Phase\\s+${escapedPhase}:\\s*([^\\n]+)`, 'i');
+    const headerMatch = content.match(phasePattern);
+    if (!headerMatch) return null;
+
+    const phaseName = headerMatch[1].trim();
+    const headerIndex = headerMatch.index;
+    const restOfContent = content.slice(headerIndex);
+    const nextHeaderMatch = restOfContent.match(/\n#{2,3}\s+Phase\s+\d/i);
+    const sectionEnd = nextHeaderMatch ? headerIndex + nextHeaderMatch.index : content.length;
+    const section = content.slice(headerIndex, sectionEnd).trim();
+
+    const goalMatch = section.match(/\*\*Goal:\*\*\s*([^\n]+)/i);
+    const goal = goalMatch ? goalMatch[1].trim() : null;
+
+    return {
+      found: true,
+      phase_number: phaseNum.toString(),
+      phase_name: phaseName,
+      goal,
+      section,
     };
   } catch {
     return null;
@@ -3659,6 +3912,11 @@ function cmdInitPlanPhase(cwd, phase, includes, raw) {
 function cmdInitNewProject(cwd, raw) {
   const config = loadConfig(cwd);
 
+  // Detect Brave Search API key availability
+  const homedir = require('os').homedir();
+  const braveKeyFile = path.join(homedir, '.gsd', 'brave_api_key');
+  const hasBraveSearch = !!(process.env.BRAVE_API_KEY || fs.existsSync(braveKeyFile));
+
   // Detect existing code
   let hasCode = false;
   let hasPackageFile = false;
@@ -3699,6 +3957,9 @@ function cmdInitNewProject(cwd, raw) {
 
     // Git state
     has_git: pathExistsInternal(cwd, '.git'),
+
+    // Enhanced search
+    brave_search_available: hasBraveSearch,
   };
 
   output(result, raw);
@@ -3836,11 +4097,33 @@ function cmdInitVerifyWork(cwd, phase, raw) {
 
 function cmdInitPhaseOp(cwd, phase, raw) {
   const config = loadConfig(cwd);
-  const phaseInfo = findPhaseInternal(cwd, phase);
+  let phaseInfo = findPhaseInternal(cwd, phase);
+
+  // Fallback to ROADMAP.md if no directory exists (e.g., Plans: TBD)
+  if (!phaseInfo) {
+    const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+    if (roadmapPhase?.found) {
+      const phaseName = roadmapPhase.phase_name;
+      phaseInfo = {
+        found: true,
+        directory: null,
+        phase_number: roadmapPhase.phase_number,
+        phase_name: phaseName,
+        phase_slug: phaseName ? phaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null,
+        plans: [],
+        summaries: [],
+        incomplete_plans: [],
+        has_research: false,
+        has_context: false,
+        has_verification: false,
+      };
+    }
+  }
 
   const result = {
     // Config
     commit_docs: config.commit_docs,
+    brave_search: config.brave_search,
 
     // Phase info
     phase_found: !!phaseInfo,
@@ -4128,7 +4411,7 @@ function cmdInitProgress(cwd, includes, raw) {
 
 // ─── CLI Router ───────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const rawIndex = args.indexOf('--raw');
   const raw = rawIndex !== -1;
@@ -4356,8 +4639,10 @@ function main() {
         cmdRoadmapGetPhase(cwd, args[2], raw);
       } else if (subcommand === 'analyze') {
         cmdRoadmapAnalyze(cwd, raw);
+      } else if (subcommand === 'update-plan-progress') {
+        cmdRoadmapUpdatePlanProgress(cwd, args[2], raw);
       } else {
-        error('Unknown roadmap subcommand. Available: get-phase, analyze');
+        error('Unknown roadmap subcommand. Available: get-phase, analyze, update-plan-progress');
       }
       break;
     }
@@ -4492,6 +4777,17 @@ function main() {
       const fieldsIndex = args.indexOf('--fields');
       const fields = fieldsIndex !== -1 ? args[fieldsIndex + 1].split(',') : null;
       cmdSummaryExtract(cwd, summaryPath, fields, raw);
+      break;
+    }
+
+    case 'websearch': {
+      const query = args[1];
+      const limitIdx = args.indexOf('--limit');
+      const freshnessIdx = args.indexOf('--freshness');
+      await cmdWebsearch(query, {
+        limit: limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : 10,
+        freshness: freshnessIdx !== -1 ? args[freshnessIdx + 1] : null,
+      }, raw);
       break;
     }
 

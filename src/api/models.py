@@ -335,6 +335,61 @@ class SettlementsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Response models -- Coverage
+# ---------------------------------------------------------------------------
+
+class CoverageSegment(BaseModel):
+    """A contiguous date range with data for a market."""
+    segment_id: int = Field(description="Segment identifier within this market")
+    segment_start: str = Field(description="First date with data in this segment (YYYY-MM-DD)")
+    segment_end: str = Field(description="Last date with data in this segment (YYYY-MM-DD)")
+    days_covered: int = Field(description="Number of days with data in this segment")
+    snapshot_count: int = Field(description="Number of snapshots in this segment")
+    delta_count: int = Field(description="Number of deltas in this segment")
+    trade_count: int = Field(description="Number of trades in this segment")
+
+
+class MarketCoverage(BaseModel):
+    """Coverage info for a single market."""
+    ticker: str
+    title: str | None = None
+    status: str | None = None
+    segment_count: int = Field(description="Number of contiguous coverage segments")
+    total_snapshots: int = Field(description="Total snapshots across all segments")
+    total_deltas: int = Field(description="Total deltas across all segments")
+    total_trades: int = Field(description="Total trades across all segments")
+    first_date: str | None = Field(default=None, description="Earliest coverage date (YYYY-MM-DD)")
+    last_date: str | None = Field(default=None, description="Latest coverage date (YYYY-MM-DD)")
+    segments: list[CoverageSegment] = Field(description="Contiguous coverage segments")
+
+
+class EventCoverageGroup(BaseModel):
+    """An event with its markets' coverage data."""
+    event_ticker: str
+    event_title: str | None = None
+    market_count: int
+    markets: list[MarketCoverage]
+
+
+class CoverageSummary(BaseModel):
+    """Page-level summary stats."""
+    total_markets: int = Field(description="Number of markets with any data")
+    total_snapshots: int = Field(description="Sum of snapshots across all markets")
+    total_deltas: int = Field(description="Sum of deltas across all markets")
+    date_range_start: str | None = Field(default=None, description="Earliest data date across all markets")
+    date_range_end: str | None = Field(default=None, description="Latest data date across all markets")
+
+
+class CoverageStatsResponse(BaseModel):
+    """Coverage stats grouped by event."""
+    summary: CoverageSummary
+    events: list[EventCoverageGroup]
+    total_events: int = Field(description="Total event count (for pagination)")
+    request_id: str
+    response_time: float
+
+
+# ---------------------------------------------------------------------------
 # Response models — Candles
 # ---------------------------------------------------------------------------
 

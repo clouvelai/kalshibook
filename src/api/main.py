@@ -19,7 +19,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from src.api.errors import generate_request_id, register_exception_handlers
-from src.api.routes import auth, billing, candles, deltas, events, keys, markets, orderbook, settlements, trades
+from src.api.routes import auth, billing, candles, coverage, deltas, events, keys, markets, orderbook, settlements, trades
 from src.api.services.supabase_auth import create_supabase_auth_client
 from src.shared.config import get_settings
 from src.shared.db import close_pool, create_pool
@@ -142,6 +142,10 @@ app = FastAPI(
             ),
         },
         {
+            "name": "Coverage",
+            "description": "Market data coverage discovery and segment stats.",
+        },
+        {
             "name": "Health",
             "description": "Service health checks.",
         },
@@ -231,3 +235,4 @@ app.include_router(settlements.router)
 app.include_router(candles.router)
 app.include_router(events.router)
 app.include_router(billing.router)
+app.include_router(coverage.router)

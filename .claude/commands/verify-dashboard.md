@@ -46,7 +46,30 @@ Then test the interactive flow:
 
 Take screenshots at key steps. Record pass/fail per check.
 
-### 5. Verify API Keys Page (`/keys`)
+### 5. Verify Coverage Page (`/coverage`)
+
+Navigate to `http://localhost:3000/coverage`. Validate:
+
+- Page has "Coverage" heading
+- Subtitle: "Discover which markets have data and where the gaps are"
+- **Summary cards**: 4 cards in a row — Markets Tracked, Total Snapshots, Total Deltas, Date Range (with compact number formatting)
+- **Search/filters**: Search input with "Search markets..." placeholder, status filter dropdown (All/Active/Settled)
+- **Table**: Markets grouped under event headers, expanded by default
+  - Event header rows show event ticker/title and market count badge
+  - Market rows show: ticker with title below, coverage date range, snapshot/delta/trade counts, segment count with timeline bar
+- **Timeline bars**: Colored segment blocks on muted background showing coverage segments
+
+Then test interactions:
+
+- Type a partial ticker in the search box — verify results filter after ~300ms debounce
+- Select "Active" or "Settled" from the status filter — verify results update
+- Click "Clear filters" — verify the full list returns
+- Click a market row to expand — verify per-segment details appear (date ranges and counts)
+- If pagination available: click next page, verify new results load
+
+Take screenshots at key steps. Record pass/fail per check.
+
+### 6. Verify API Keys Page (`/keys`)
 
 Navigate to `http://localhost:3000/keys`. Validate:
 
@@ -58,7 +81,7 @@ Navigate to `http://localhost:3000/keys`. Validate:
 
 Take a screenshot. Record pass/fail.
 
-### 6. Verify Billing Page (`/billing`)
+### 7. Verify Billing Page (`/billing`)
 
 Navigate to `http://localhost:3000/billing`. Validate:
 
@@ -70,7 +93,7 @@ Navigate to `http://localhost:3000/billing`. Validate:
 
 Take a screenshot. Record pass/fail.
 
-### 7. Summary
+### 8. Summary
 
 Print a results table:
 
@@ -81,6 +104,9 @@ Print a results table:
 | Playground - Try Example | pass/fail | details |
 | Playground - Send Request | pass/fail | details |
 | Playground - Response/Preview | pass/fail | details |
+| Coverage - Layout | pass/fail | details |
+| Coverage - Search/Filter | pass/fail | details |
+| Coverage - Expand Row | pass/fail | details |
 | API Keys | pass/fail | details |
 | Billing | pass/fail | details |
 

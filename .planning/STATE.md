@@ -52,6 +52,7 @@ v1.2 execution decisions (Phase 13):
 
 1. **Subscribe to ticker WS channel for open interest data** (collector)
 2. **Fetch Kalshi event candlesticks for untracked markets** (api)
+3. **Fix Documentation sidebar link for local dev** — currently points to `/api/llms-full.txt` which resolves to dashboard (port 3000) instead of API (port 8000) in local dev
 3. **Pre-populate playground with real captured market data** (dashboard) — addressed by PLAY-01
 
 ### Blockers/Concerns

@@ -25,60 +25,49 @@ for var in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY DEV_USER_EMAIL; do
   fi
 done
 
-echo "Generating magic link for $DEV_USER_EMAIL..."
+echo "Generating dev session for $DEV_USER_EMAIL..."
 
-# Step 1: Generate magic link via admin API
-GENERATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
-  "${SUPABASE_URL}/auth/v1/admin/generate_link" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"magiclink\",\"email\":\"${DEV_USER_EMAIL}\"}")
+# Use Python for both API calls in one process to avoid OTP expiry between steps
+URL=$(python3 << 'PYEOF'
+import requests, os, sys
 
-HTTP_CODE=$(echo "$GENERATE_RESPONSE" | tail -1)
-BODY=$(echo "$GENERATE_RESPONSE" | sed '$d')
+supabase_url = os.environ['SUPABASE_URL']
+service_key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+email = os.environ['DEV_USER_EMAIL']
 
-if [[ "$HTTP_CODE" != "200" ]]; then
-  echo "Error: generate_link failed (HTTP $HTTP_CODE)" >&2
-  echo "$BODY" >&2
-  exit 1
-fi
+# Step 1: Generate magic link
+r = requests.post(f'{supabase_url}/auth/v1/admin/generate_link',
+    headers={
+        'apikey': service_key,
+        'Authorization': f'Bearer {service_key}',
+        'Content-Type': 'application/json'
+    },
+    json={'type': 'magiclink', 'email': email}
+)
+if r.status_code != 200:
+    print(f'Error: generate_link failed (HTTP {r.status_code}): {r.text}', file=sys.stderr)
+    sys.exit(1)
 
-HASHED_TOKEN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['hashed_token'])")
+hashed_token = r.json()['hashed_token']
 
-if [[ -z "$HASHED_TOKEN" ]]; then
-  echo "Error: no hashed_token in response" >&2
-  exit 1
-fi
+# Step 2: Immediately verify to get session tokens
+r2 = requests.post(f'{supabase_url}/auth/v1/verify',
+    headers={
+        'apikey': service_key,
+        'Content-Type': 'application/json'
+    },
+    json={'token_hash': hashed_token, 'type': 'magiclink'}
+)
+if r2.status_code != 200:
+    print(f'Error: verify failed (HTTP {r2.status_code}): {r2.text}', file=sys.stderr)
+    sys.exit(1)
 
-echo "Verifying token..."
-
-# Step 2: Verify token to get access_token + refresh_token
-VERIFY_RESPONSE=$(curl -s -w "\n%{http_code}" \
-  "${SUPABASE_URL}/auth/v1/verify" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"token_hash\":\"${HASHED_TOKEN}\",\"type\":\"magiclink\"}")
-
-HTTP_CODE=$(echo "$VERIFY_RESPONSE" | tail -1)
-BODY=$(echo "$VERIFY_RESPONSE" | sed '$d')
-
-if [[ "$HTTP_CODE" != "200" ]]; then
-  echo "Error: verify failed (HTTP $HTTP_CODE)" >&2
-  echo "$BODY" >&2
-  exit 1
-fi
-
-ACCESS_TOKEN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-REFRESH_TOKEN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['refresh_token'])")
-
-if [[ -z "$ACCESS_TOKEN" || -z "$REFRESH_TOKEN" ]]; then
-  echo "Error: missing tokens in verify response" >&2
-  exit 1
-fi
-
-# Step 3: Open Chrome with dev-session route
-URL="http://localhost:3000/auth/dev-session?access_token=${ACCESS_TOKEN}&refresh_token=${REFRESH_TOKEN}"
+data = r2.json()
+at = data['access_token']
+rt = data['refresh_token']
+print(f'http://localhost:3000/auth/dev-session?access_token={at}&refresh_token={rt}')
+PYEOF
+)
 
 echo "Opening Chrome with authenticated session..."
 open -a "Google Chrome" "$URL"

@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 1-7 (shipped 2026-02-17)
 - ✅ **v1.1 Python SDK** — Phases 8-12 (shipped 2026-02-18)
-- 🚧 **v1.2 Discovery & Replay** — Phases 13-15 (in progress)
+- ✅ **v1.2 Discovery & Replay** — Phases 13-15 (shipped 2026-02-18)
 
 ## Phases
 
@@ -36,65 +36,21 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full details.
 
 </details>
 
-### 🚧 v1.2 Discovery & Replay (In Progress)
+<details>
+<summary>✅ v1.2 Discovery & Replay (Phases 13-15) — SHIPPED 2026-02-18</summary>
 
-**Milestone Goal:** Make the API foundation production-ready and compelling -- users can discover available market data, see real tickers in the playground, and visually explore orderbook depth at any covered timestamp.
+- [x] Phase 13: Market Coverage Discovery (2/2 plans) — completed 2026-02-18
+- [x] Phase 14: Playground Upgrade (2/2 plans) — completed 2026-02-18
+- [x] Phase 15: Depth Chart Visualization (1/1 plans) — completed 2026-02-18
 
-- [x] **Phase 13: Market Coverage Discovery** — Browsable, searchable market coverage with pre-computed segment stats (completed 2026-02-18)
-- [x] **Phase 14: Playground Upgrade** — Real tickers, autocomplete, example cards, and zero-credit demos (completed 2026-02-18)
-- [x] **Phase 15: Depth Chart Visualization** — Canvas-rendered orderbook depth chart embedded in the playground (completed 2026-02-18)
+See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full details.
 
-## Phase Details
-
-### Phase 13: Market Coverage Discovery
-**Goal**: Users can discover which markets have data, how much, and where the gaps are
-**Depends on**: Phase 12 (v1.1 complete)
-**Requirements**: COVR-01, COVR-02, COVR-03, COVR-04, COVR-05
-**Success Criteria** (what must be TRUE):
-  1. User can view a paginated table of all markets with data, showing contiguous coverage segments (date ranges with gap boundaries) for each
-  2. User can see per-market summary stats (total data points, segment count, snapshot/delta/trade counts) that load in under 2 seconds
-  3. User can search markets by ticker substring and filter by event or active/settled status, with results updating as they type
-  4. Coverage stats are served from a pre-computed materialized view, not live partition scans
-  5. Coverage segments reflect actual data gaps -- a market with data on days 1-3 and 7-10 shows two segments, not one range of 1-10
-**Plans:** 2 plans
-
-Plans:
-- [ ] 13-01-PLAN.md -- Materialized view migration + FastAPI coverage endpoint + response models
-- [ ] 13-02-PLAN.md -- Coverage dashboard page with table, search, filters, timeline bars, summary cards
-
-### Phase 14: Playground Upgrade
-**Goal**: Users can explore the API through the playground without guessing tickers or burning credits
-**Depends on**: Phase 13
-**Requirements**: PLAY-01, PLAY-02, PLAY-03, PLAY-04
-**Success Criteria** (what must be TRUE):
-  1. Playground ticker input pre-populates from real captured markets (not hardcoded values that break when markets settle)
-  2. User can type partial ticker text and get autocomplete suggestions from markets with confirmed data coverage
-  3. Playground shows example cards with pre-populated queries for common use cases (orderbook reconstruction, trade history, candles) that execute with one click
-  4. All playground demo interactions cost zero credits -- served via dashboard-internal endpoint or pre-baked responses, not through the billed API path
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 14-01-PLAN.md -- Backend playground endpoints (market search + demo execution) and shadcn component install
-- [ ] 14-02-PLAN.md -- Frontend integration (TickerCombobox, ExampleCards, playground wiring)
-
-### Phase 15: Depth Chart Visualization
-**Goal**: Users can visually inspect orderbook depth at any covered timestamp, rendered as a Canvas-based chart in the playground
-**Depends on**: Phase 14
-**Requirements**: DPTH-01, DPTH-02, DPTH-03, PLAY-05
-**Success Criteria** (what must be TRUE):
-  1. User can view a depth chart showing Yes and No sides across the 0-100 cent price range for any market at any covered timestamp
-  2. Depth chart renders using HTML Canvas (not SVG) to support future animation without a rewrite
-  3. Depth chart is accessible as a tab in the playground alongside the existing API response view
-  4. Selecting a different market or timestamp in the playground updates the depth chart accordingly
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 15-01-PLAN.md -- Canvas depth chart component + response panel tab integration
+</details>
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 13 → 14 → 15
+All milestones shipped. Next milestone TBD via `/gsd:new-milestone`.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -112,4 +68,4 @@ Phases execute in numeric order: 13 → 14 → 15
 | 12. Documentation & PyPI Publishing | v1.1 | 3/3 | Complete | 2026-02-18 |
 | 13. Market Coverage Discovery | v1.2 | 2/2 | Complete | 2026-02-18 |
 | 14. Playground Upgrade | v1.2 | 2/2 | Complete | 2026-02-18 |
-| 15. Depth Chart Visualization | 1/1 | Complete    | 2026-02-18 | - |
+| 15. Depth Chart Visualization | v1.2 | 1/1 | Complete | 2026-02-18 |

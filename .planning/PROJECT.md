@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A monetized data API that collects, stores, and serves L2 orderbook data from Kalshi prediction markets. Customers (algo traders, quants, and AI agents) query historical point-in-time orderbook state, access trade/settlement/candle data for backtesting, and manage their accounts through a self-service dashboard. Tavily-style API with free tier through project plans.
+A monetized data API that collects, stores, and serves L2 orderbook data from Kalshi prediction markets. Customers (algo traders, quants, and AI agents) query historical point-in-time orderbook state, access trade/settlement/candle data for backtesting, discover market coverage, and manage their accounts through a self-service dashboard. Tavily-style API with free tier through project plans.
 
 ## Core Value
 
@@ -31,17 +31,18 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - ✓ Data discovery helpers in SDK (list available markets, coverage dates) — v1.1
 - ✓ Typed response models and exception hierarchy — v1.1
 - ✓ Sync and async client with auto-pagination and DataFrame support — v1.1
+- ✓ Market coverage visibility (browsable, searchable coverage with segment detection) — v1.2
+- ✓ Playground with real captured market tickers and zero-credit demos — v1.2
+- ✓ Canvas depth chart visualization in playground — v1.2
 
 ### Active
 
-- [ ] Market coverage visibility (which markets have data, date ranges, completeness)
-- [ ] Populate playground with real captured market tickers
-- [ ] Orderbook replay visualization in playground (depth + price over time)
 - [ ] Pricing validation against real data volumes
+- [ ] Animated orderbook replay with play/pause/scrub controls
+- [ ] SDK backtesting abstractions (replay_orderbook, stream_trades)
 
 ### Future
 
-- [ ] Python SDK backtesting abstractions (replay_orderbook, stream_trades)
 - [ ] Credit budget parameter for large SDK queries
 - [ ] Stream real-time orderbook updates to subscribers via websocket
 - [ ] Real-time streaming requires valid API key authentication on connect
@@ -49,6 +50,8 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - [ ] MCP server exposing KalshiBook endpoints as AI agent tools
 - [ ] Downloadable flat files (CSV/Parquet) for bulk backtesting
 - [ ] Public landing page with marketing-ready demo
+- [ ] Calendar heatmap for data density visualization
+- [ ] Coverage page accessible publicly (marketing value)
 
 ### Out of Scope
 
@@ -71,13 +74,13 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - Real-time feeds for live strategy execution
 - Programmatic access (API-first, not dashboards)
 
-**Current state (v1.1 shipped):**
-- Backend: Python/FastAPI, 6,346 LOC — 10 data endpoints, credit billing, Supabase Auth
-- Frontend: Next.js 15/TypeScript, 5,684 LOC — dashboard with key management, billing, playground
-- SDK: Python/httpx, 2,686 LOC — typed client with sync/async, 20 endpoint methods, auto-pagination, DataFrame support
+**Current state (v1.2 shipped):**
+- Backend: Python/FastAPI, 6,313 LOC — 10 data endpoints + coverage + playground endpoints, credit billing, Supabase Auth
+- Frontend: Next.js 15/TypeScript, 7,519 LOC — dashboard with key management, billing, playground, coverage page, depth chart
+- SDK: Python/httpx, 1,630 LOC — typed client with sync/async, 20 endpoint methods, auto-pagination, DataFrame support
 - Docs: mkdocs-material site with Getting Started, Authentication, endpoint examples, auto-generated API reference
 - Infrastructure: Supabase (Postgres), Stripe, Railway (collector), PyPI (kalshibook package)
-- Data: daily-partitioned tables for snapshots, deltas, trades; settlements, events, series
+- Data: daily-partitioned tables for snapshots, deltas, trades; settlements, events, series; materialized coverage view
 
 ## Constraints
 
@@ -116,15 +119,18 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 | PageIterator with eager first-page fetch | Errors surface at call time, not during iteration | ✓ Good — better DX |
 | mkdocs-material with gen-files/literate-nav | Auto-generated API reference from NumPy docstrings | ✓ Good |
 
-## Current Milestone: v1.2 Discovery & Replay
+## Key Decisions (v1.2)
 
-**Goal:** Make the API foundation production-ready and compelling — users can discover available market data, see real tickers in the playground, and visually replay orderbook depth + price over time.
-
-**Target features:**
-- Market coverage visibility (available markets, date ranges, data completeness)
-- Playground populated with real captured market data
-- Orderbook replay visualization (depth chart + price animation)
-- Pricing validation against real usage patterns
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Materialized view for coverage stats | Live partition scans too slow at scale | ✓ Good — fast coverage queries |
+| Gaps-and-islands SQL for segment detection | Avoids false single-range reporting on gapped data | ✓ Good — accurate segments |
+| Advisory lock on matview refresh | Prevents concurrent refresh conflicts without blocking reads | ✓ Good |
+| Event-level pagination (not market-level) | Dashboard shows events as groups | ✓ Good — natural grouping |
+| Canvas over SVG for depth chart | Future animation support, no rewrite path from SVG | ✓ Good — ~250 lines, zero bundle impact |
+| Zero-credit playground demos | Dashboard-internal endpoint skips billing | ✓ Good — frictionless exploration |
+| No charting library for depth chart | Raw Canvas 2D sufficient, zero bundle impact | ✓ Good |
+| Replay animation deferred to v1.3 | Ship static depth chart first, validate demand | ✓ Good — shipped faster |
 
 ---
-*Last updated: 2026-02-18 after v1.2 milestone start*
+*Last updated: 2026-02-18 after v1.2 milestone*

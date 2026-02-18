@@ -48,3 +48,29 @@
 
 ---
 
+
+## v1.2 Discovery & Replay (Shipped: 2026-02-18)
+
+**Delivered:** Market coverage discovery, upgraded playground with real tickers and zero-credit demos, and Canvas depth chart visualization
+
+**Phases completed:** 3 phases (13-15), 5 plans
+**Timeline:** 1 day (2026-02-18)
+**Files changed:** 41 (+4,951 / -116)
+**Codebase:** 6,313 Python API + 7,519 TypeScript dashboard + 1,630 Python SDK (15,462 LOC)
+
+**Key accomplishments:**
+- Materialized coverage view with gaps-and-islands SQL for accurate contiguous segment detection
+- Coverage dashboard page with event-grouped table, search, status filters, and timeline bars
+- Playground backend with market search autocomplete and zero-credit demo execution endpoints
+- TickerCombobox and ExampleCards for real captured market data in the playground
+- Canvas-based depth chart showing Yes/No orderbook depth at any covered timestamp
+
+**Deferred to v1.3:**
+- Animated orderbook replay with play/pause/scrub controls
+- Calendar heatmap for data density visualization
+- SDK backtesting abstractions (replay_orderbook, stream_trades)
+
+**Archive:** [v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) | [v1.2-REQUIREMENTS.md](milestones/v1.2-REQUIREMENTS.md)
+
+---
+

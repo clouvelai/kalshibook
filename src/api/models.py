@@ -455,6 +455,48 @@ class EventDetailResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Playground models
+# ---------------------------------------------------------------------------
+
+
+class PlaygroundMarketResult(BaseModel):
+    """A market result for playground autocomplete."""
+    ticker: str = Field(description="Market ticker")
+    title: str | None = Field(default=None, description="Market title")
+    status: str | None = Field(default=None, description="Market status")
+    event_ticker: str | None = Field(default=None, description="Parent event ticker")
+    first_date: str | None = Field(default=None, description="Earliest coverage date")
+    last_date: str | None = Field(default=None, description="Latest coverage date")
+
+
+class PlaygroundMarketsResponse(BaseModel):
+    """Response for playground market search."""
+    data: list[PlaygroundMarketResult]
+    request_id: str
+
+
+class DemoRequest(BaseModel):
+    """Request to execute a zero-credit demo query."""
+    endpoint: str = Field(description="Target endpoint: 'orderbook', 'trades', or 'candles'")
+    market_ticker: str = Field(description="Kalshi market ticker")
+    timestamp: datetime | None = Field(default=None, description="ISO 8601 timestamp (for orderbook)")
+    depth: int | None = Field(default=None, ge=1, le=50, description="Orderbook depth limit")
+    start_time: datetime | None = Field(default=None, description="Start time (for trades/candles)")
+    end_time: datetime | None = Field(default=None, description="End time (for trades/candles)")
+    interval: str | None = Field(default=None, description="Candle interval: 1m, 1h, 1d")
+    limit: int = Field(default=20, ge=1, le=100, description="Result limit (for trades)")
+
+
+class DemoResponse(BaseModel):
+    """Response from a demo query execution."""
+    endpoint: str = Field(description="Which endpoint was queried")
+    data: dict | list = Field(description="Response data from the service")
+    response_time: float = Field(description="Server-side processing time in seconds")
+    request_id: str
+    credits_cost: int = Field(default=0, description="Always 0 for demo requests")
+
+
+# ---------------------------------------------------------------------------
 # Error models (for OpenAPI spec documentation)
 # ---------------------------------------------------------------------------
 

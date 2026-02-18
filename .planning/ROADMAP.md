@@ -56,11 +56,11 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full details.
   3. User can search markets by ticker substring and filter by event or active/settled status, with results updating as they type
   4. Coverage stats are served from a pre-computed materialized view, not live partition scans
   5. Coverage segments reflect actual data gaps -- a market with data on days 1-3 and 7-10 shows two segments, not one range of 1-10
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 13-01: TBD
-- [ ] 13-02: TBD
+- [ ] 13-01-PLAN.md -- Materialized view migration + FastAPI coverage endpoint + response models
+- [ ] 13-02-PLAN.md -- Coverage dashboard page with table, search, filters, timeline bars, summary cards
 
 ### Phase 14: Playground Upgrade
 **Goal**: Users can explore the API through the playground without guessing tickers or burning credits

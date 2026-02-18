@@ -26,18 +26,21 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - ✓ Trade capture and history queryable via API — v1.0
 - ✓ Candlestick data at 1m/1h/1d intervals — v1.0
 - ✓ Interactive API playground — v1.0
+- ✓ Python SDK published to PyPI as installable package — v1.1
+- ✓ SDK reference documentation (mkdocs-material with auto-generated API reference) — v1.1
+- ✓ Data discovery helpers in SDK (list available markets, coverage dates) — v1.1
+- ✓ Typed response models and exception hierarchy — v1.1
+- ✓ Sync and async client with auto-pagination and DataFrame support — v1.1
 
 ### Active
 
-- [ ] Python SDK with high-level backtesting abstractions (replay_orderbook, stream_trades)
-- [ ] SDK published to PyPI as installable package
-- [ ] SDK reference documentation (pdoc or similar)
-- [ ] Data discovery helpers in SDK (list available markets, coverage dates)
+- [ ] Python SDK backtesting abstractions (replay_orderbook, stream_trades)
+- [ ] Credit budget parameter for large SDK queries
+- [ ] Stream real-time orderbook updates to subscribers via websocket
+- [ ] Real-time streaming requires valid API key authentication on connect
 
 ### Future
 
-- [ ] Stream real-time orderbook updates to subscribers via websocket
-- [ ] Real-time streaming requires valid API key authentication on connect
 - [ ] TypeScript SDK auto-generated from OpenAPI spec
 - [ ] MCP server exposing KalshiBook endpoints as AI agent tools
 - [ ] Downloadable flat files (CSV/Parquet) for bulk backtesting
@@ -63,10 +66,12 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 - Real-time feeds for live strategy execution
 - Programmatic access (API-first, not dashboards)
 
-**Current state (v1.0 shipped):**
+**Current state (v1.1 shipped):**
 - Backend: Python/FastAPI, 6,346 LOC — 10 data endpoints, credit billing, Supabase Auth
 - Frontend: Next.js 15/TypeScript, 5,684 LOC — dashboard with key management, billing, playground
-- Infrastructure: Supabase (Postgres), Stripe, Railway (collector)
+- SDK: Python/httpx, 2,686 LOC — typed client with sync/async, 20 endpoint methods, auto-pagination, DataFrame support
+- Docs: mkdocs-material site with Getting Started, Authentication, endpoint examples, auto-generated API reference
+- Infrastructure: Supabase (Postgres), Stripe, Railway (collector), PyPI (kalshibook package)
 - Data: daily-partitioned tables for snapshots, deltas, trades; settlements, events, series
 
 ## Constraints
@@ -94,15 +99,17 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 | Two-step orderbook reconstruction | Snapshot + delta replay clearer than single CTE | ✓ Good — debuggable and correct |
 | Credit system as primary rate enforcement | SlowAPI backstop only, credits are real limiter | ✓ Good — simple and effective |
 
-## Current Milestone: v1.1 Python SDK
+## Key Decisions (v1.1)
 
-**Goal:** Give users a first-class Python client for backtesting — install via pip, replay orderbooks, stream trades, discover available data.
-
-**Target features:**
-- Auto-generated Python SDK wrapping all REST endpoints
-- High-level backtesting abstractions (orderbook replay, trade streaming)
-- Data discovery helpers (available markets, coverage dates)
-- SDK reference docs
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Hand-written SDK over code generation | Better ergonomics for 10 endpoints; abstractions can't be generated | ✓ Good — clean typed API |
+| httpx + stdlib dataclasses (no Pydantic) | Avoids version conflicts with consumer projects | ✓ Good — zero conflicts |
+| Single KalshiBook class with sync=True flag | Simpler than separate AsyncKalshiBook class | ✓ Good — one import |
+| Replay abstractions deferred to v1.2 | Ship SDK core first, add high-level abstractions later | ✓ Good — v1.1 shipped faster |
+| uv_build backend with src layout | Zero-config package discovery in monorepo | ✓ Good |
+| PageIterator with eager first-page fetch | Errors surface at call time, not during iteration | ✓ Good — better DX |
+| mkdocs-material with gen-files/literate-nav | Auto-generated API reference from NumPy docstrings | ✓ Good |
 
 ---
-*Last updated: 2026-02-17 after v1.1 milestone start*
+*Last updated: 2026-02-18 after v1.1 milestone*

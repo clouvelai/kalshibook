@@ -24,3 +24,27 @@
 
 ---
 
+
+## v1.1 Python SDK (Shipped: 2026-02-18)
+
+**Phases completed:** 5 phases (8-12), 11 plans
+**Timeline:** 5 days (2026-02-13 → 2026-02-17)
+**Codebase:** 2,686 LOC Python (SDK)
+**Files changed:** 64 (+11,291 / -41)
+
+**Key accomplishments:**
+- SDK package with uv workspace integration, src layout, and py.typed marker
+- 21 typed dataclass response models, exception hierarchy, and dual-mode HTTP transport with retry/auth
+- 20 endpoint methods covering all KalshiBook API surfaces (sync + async)
+- PageIterator with auto-pagination and .to_df() DataFrame conversion (pandas optional)
+- mkdocs-material docs site with Getting Started, Authentication, and endpoint example guides
+- GitHub Actions CI/CD and PyPI publishing pipeline
+
+**Deferred to v1.2:**
+- Backtesting abstractions (replay_orderbook, stream_trades)
+- Credit budget parameter for large queries
+
+**Archive:** [v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) | [v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md)
+
+---
+

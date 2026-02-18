@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 13 complete — ready for Phase 14
+**Current focus:** Phase 14 — Playground Upgrade
 
 ## Current Position
 
-Phase: 13 of 15 (Market Coverage Discovery) — COMPLETE
-Plan: 2 of 2 complete
-Status: Phase complete, verified via /verify-dashboard
-Last activity: 2026-02-18 — Completed 13-02 coverage dashboard + verification
+Phase: 14 of 15 (Playground Upgrade) — IN PROGRESS
+Plan: 1 of 2 complete
+Status: Executing phase 14 — plan 14-01 complete
+Last activity: 2026-02-18 — Completed 14-01 backend playground endpoints + shadcn components
 
-Progress: [██████████████████████████████] 100%
+Progress: [███████████████░░░░░░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
@@ -27,6 +27,7 @@ Progress: [███████████████████████
 |-------|------|----------|-------|-------|
 | 13    | 01   | 3min     | 2     | 4     |
 | 13    | 02   | 3min     | 2     | 9     |
+| 14    | 01   | 3min     | 2     | 7     |
 
 *Prior metrics carried forward from v1.1*
 
@@ -49,6 +50,10 @@ v1.2 execution decisions (Phase 13):
 - Event-level pagination (not market-level) -- dashboard shows events as groups
 - JWT auth only on coverage endpoints -- no credit deduction for dashboard-internal use
 
+v1.2 execution decisions (Phase 14):
+- Skipped per-endpoint rate limit on playground demo -- global 120/min already applies
+- Demo trades query uses direct SQL (no standalone service function)
+
 ### Pending Todos
 
 1. **Subscribe to ticker WS channel for open interest data** (collector)
@@ -63,6 +68,6 @@ v1.2 execution decisions (Phase 13):
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 13 complete (both plans executed + verified)
-Resume: `/gsd:discuss-phase 14` or `/gsd:plan-phase 14` for Playground Upgrade
-Resume file: .planning/phases/13-market-coverage-discovery/13-02-SUMMARY.md
+Stopped at: Completed 14-01-PLAN.md
+Resume: Continue with plan 14-02 (frontend integration)
+Resume file: .planning/phases/14-playground-upgrade/14-01-SUMMARY.md

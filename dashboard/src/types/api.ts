@@ -90,3 +90,51 @@ export interface OrderbookResponse {
   response_time: number;
   request_id: string;
 }
+
+/** Coverage types */
+
+export interface CoverageSegment {
+  segment_id: number;
+  segment_start: string;
+  segment_end: string;
+  days_covered: number;
+  snapshot_count: number;
+  delta_count: number;
+  trade_count: number;
+}
+
+export interface MarketCoverage {
+  ticker: string;
+  title: string | null;
+  status: string | null;
+  segment_count: number;
+  total_snapshots: number;
+  total_deltas: number;
+  total_trades: number;
+  first_date: string | null;
+  last_date: string | null;
+  segments: CoverageSegment[];
+}
+
+export interface EventCoverageGroup {
+  event_ticker: string;
+  event_title: string | null;
+  market_count: number;
+  markets: MarketCoverage[];
+}
+
+export interface CoverageSummary {
+  total_markets: number;
+  total_snapshots: number;
+  total_deltas: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+}
+
+export interface CoverageStatsResponse {
+  summary: CoverageSummary;
+  events: EventCoverageGroup[];
+  total_events: number;
+  request_id: string;
+  response_time: number;
+}

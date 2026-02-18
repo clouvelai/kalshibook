@@ -6,6 +6,7 @@ import type {
   AuthResponse,
   BillingStatus,
   CheckoutResponse,
+  CoverageStatsResponse,
   KeyUsageItem,
   PaygToggleResponse,
   PortalResponse,
@@ -100,6 +101,33 @@ export const api = {
       fetchAPI<AuthResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
+      }),
+  },
+
+  coverage: {
+    stats: (params?: {
+      search?: string;
+      status?: string;
+      event_ticker?: string;
+      page?: number;
+      page_size?: number;
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.search) searchParams.set("search", params.search);
+      if (params?.status) searchParams.set("status", params.status);
+      if (params?.event_ticker)
+        searchParams.set("event_ticker", params.event_ticker);
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.page_size)
+        searchParams.set("page_size", String(params.page_size));
+      const qs = searchParams.toString();
+      return fetchAPI<CoverageStatsResponse>(
+        `/coverage/stats${qs ? `?${qs}` : ""}`
+      );
+    },
+    refresh: () =>
+      fetchAPI<{ message: string; request_id: string }>("/coverage/refresh", {
+        method: "POST",
       }),
   },
 };

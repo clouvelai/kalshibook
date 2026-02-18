@@ -1,193 +1,249 @@
-# Pitfalls Research: Python SDK + Backtesting Abstractions
+# Pitfalls Research: Discovery, Replay & Coverage Features
 
-**Domain:** Python SDK for monetized L2 orderbook data API (adding SDK to existing KalshiBook API)
-**Researched:** 2026-02-17
-**Confidence:** HIGH (verified against Azure SDK guidelines, PyPI official docs, real-world SDK post-mortems from DigitalOcean, community issue trackers, existing codebase analysis)
+**Domain:** Orderbook replay visualization, market coverage dashboards, and data discovery features added to existing financial data API platform (KalshiBook)
+**Researched:** 2026-02-18
+**Confidence:** HIGH (verified against existing codebase architecture, PostgreSQL partitioning documentation, browser rendering performance research, and billing system analysis)
 
 ## Critical Pitfalls
 
-### Pitfall 1: Unbounded Memory Growth in replay_orderbook()
+### Pitfall 1: Browser Memory Explosion from Unbounded Replay Data Transfer
 
 **What goes wrong:**
-The `replay_orderbook()` function fetches a snapshot then pages through all deltas in a time range, accumulating them in memory to reconstruct orderbook evolution. For active markets over long time periods, this can mean hundreds of thousands or millions of delta records. The naive implementation loads all pages into a list, applies them sequentially, and returns a full history. The SDK user's Python process runs out of memory and crashes -- or worse, triggers OS swap and degrades the entire machine.
+The replay visualization loads an entire market's orderbook history into the browser. A replay of a single active market for one day requires fetching the initial snapshot (JSONB with up to 99 yes levels + 99 no levels) plus all deltas between start and end time. For a market like BTC with continuous trading, a 24-hour period can generate 50,000-200,000+ delta records. At ~100 bytes per delta in JSON, that is 5-20MB of raw JSON transferred to the browser -- and once parsed into JavaScript objects, memory usage triples to 15-60MB. A user who opens multiple replays, or replays a week of data, can push the browser tab past 500MB and trigger an out-of-memory crash on mobile devices or low-RAM machines.
 
 **Why it happens:**
-Developers build the replay function by concatenating all paginated responses into a single list before processing. It works perfectly during development with small test windows (5 minutes of data = a few hundred deltas). Then a user calls `replay_orderbook("KXBTC-25FEB17", start="2026-01-01", end="2026-02-01")` and requests a month of orderbook evolution for a high-volume market. The existing API returns up to 1000 deltas per page (see `DeltasRequest.limit` max), and a month of data could be 500K+ deltas. At roughly 200 bytes per delta record, that is 100MB+ in Python objects (dicts are 3-5x the raw data size due to object overhead).
+The existing `reconstruct_orderbook()` function (in `src/api/services/reconstruction.py`) reconstructs a single point-in-time state server-side. A replay needs N states over time. The naive approach is to call the orderbook endpoint N times (expensive in credits and latency) or to create a new "replay" endpoint that returns ALL deltas in one response. Both fail: the per-request approach costs `5 credits * N` and is slow; the bulk approach dumps all data into a single JSON response that must be fully loaded before the browser can start rendering.
+
+The existing deltas endpoint (`/deltas`) returns paginated results with a max of 1000 per page, which is good for API consumers, but for browser-based replay you need the full dataset in-memory to reconstruct states at arbitrary points. There is no intermediate representation -- no server-side pre-processing into "keyframes" that would reduce the data transfer.
 
 **How to avoid:**
-- Use an async generator (`async def replay_orderbook(...) -> AsyncIterator[OrderbookState]`) that yields one orderbook state per delta or per batch, never holding the full history in memory.
-- Process deltas incrementally: fetch one page, apply to current book state, yield the state, then fetch the next page. Only hold one page of deltas + current book state at any time.
-- Provide a `snapshot_interval` parameter that controls how often to yield -- e.g., yield a state every 100 deltas or every 60 seconds of market time, rather than on every individual delta.
-- Add a `max_pages` safety parameter with a sensible default (e.g., 100 pages = 100K deltas). If exceeded, raise a clear error: "Time range too large. Use a narrower window or increase max_pages."
-- Document the memory characteristics explicitly: "This function streams results. Use `async for state in replay_orderbook(...)` -- do not call `list()` on the result."
+- Create a dedicated **replay endpoint** that does server-side reconstruction at configurable intervals (e.g., one state every 30 seconds) and returns a time series of orderbook snapshots, not raw deltas. This shifts the O(N) delta processing from the browser to the server where it belongs.
+- Implement **streaming delivery** using Server-Sent Events (SSE) or chunked JSON (Next.js supports streaming in App Router). The browser starts rendering the first frame while subsequent frames are still being computed. The existing Next.js dashboard already uses the App Router, so streaming is architecturally compatible.
+- Set a **hard maximum time range** for replay requests (e.g., 4 hours max per request). Longer ranges require the user to paginate through time windows. This caps the maximum data transfer per request.
+- Use **server-side downsampling**: for a 24-hour replay, return one state per minute (1,440 frames) not one per delta (200,000 frames). The user cannot perceive sub-second differences in a depth chart animation anyway.
+- Send data in a **compact binary format** (e.g., MessagePack or a custom binary encoding of price levels) rather than verbose JSON. A depth chart frame is just an array of `[price, quantity]` pairs -- 4 bytes per pair instead of ~30 bytes in JSON.
 
 **Warning signs:**
-- `replay_orderbook()` returns a `list` instead of an `AsyncIterator` / `AsyncGenerator`.
-- No test with time ranges longer than 1 hour.
-- No documentation warning about memory for large replays.
-- Users reporting MemoryError or process kills when replaying long periods.
+- Replay endpoint returns raw deltas instead of pre-processed orderbook states.
+- No `max_time_range` or `interval` parameter on the replay request.
+- Browser tab memory exceeds 200MB during replay of a single market.
+- Users on mobile or older laptops report page crashes during replay.
+- The response payload for a 1-hour replay exceeds 2MB.
 
 **Phase to address:**
-Phase 1 (SDK Core Design) -- the replay abstraction's return type and streaming architecture must be designed correctly from the start. Retrofitting a list-based return into an async generator is a breaking change.
+First phase (Replay API) -- the data transfer strategy must be decided before any frontend rendering code is written. Choosing wrong means either a rewrite of the endpoint or a permanently sluggish visualization.
 
 ---
 
-### Pitfall 2: Credit Burn Surprise -- Users Exhaust Credits Without Realizing It
+### Pitfall 2: Market Coverage Queries Scanning All Partitions, Killing Response Times
 
 **What goes wrong:**
-`replay_orderbook()` internally makes many API calls (1 snapshot request = 5 credits, then N delta page requests = 2 credits each). A replay over a 24-hour period for an active market might require 200+ pages of deltas, costing 5 + (200 * 2) = 405 credits. A free-tier user has 1,000 credits/month. One call to `replay_orderbook()` burns 40% of their monthly allowance. Users call the function casually, hit `credits_exhausted` mid-replay, and lose both credits and the partial results.
+The market coverage dashboard needs to show, for each market: earliest data, latest data, snapshot count, delta count, and data completeness percentage. The existing `GET /markets` endpoint (in `src/api/routes/markets.py`) already does this with correlated subqueries:
+
+```sql
+SELECT m.ticker, m.title,
+  (SELECT MIN(captured_at) FROM snapshots WHERE market_ticker = m.ticker) AS first_data_at,
+  (SELECT MAX(ts) FROM deltas WHERE market_ticker = m.ticker) AS last_data_at
+FROM markets m
+```
+
+This query touches every partition of both the `snapshots` table (monthly partitions) and the `deltas` table (daily partitions). With the system running since February 2026, by month 6 there will be ~4 monthly snapshot partitions and ~120+ daily delta partitions. PostgreSQL must scan the index of EVERY partition to compute `MIN()` and `MAX()` because it cannot prune partitions -- the query needs the global minimum/maximum, not a value from a known time range. The planner's cost grows linearly with partition count. At 120 partitions, the planning time alone can exceed 10-50ms per subquery, and with N markets, you get `N * 2 * planning_overhead` which becomes seconds for hundreds of markets.
+
+The delta count (`SELECT COUNT(*) FROM deltas WHERE market_ticker = $1`) is even worse: `COUNT(*)` requires touching every qualifying row across all partitions. For a market with 500K deltas spread across 60 daily partitions, this is a full index scan of 60 partition indexes.
 
 **Why it happens:**
-The SDK hides the pagination loop from the user -- that is the whole point. But hiding pagination also hides the cost. Users think "I'm making one function call" when the SDK is making 200+ API calls. The existing API returns `X-Credits-Remaining` and `X-Credits-Cost` headers (see `inject_credit_headers` middleware in `main.py`), but the SDK silently consumes these without surfacing them to the user.
+PostgreSQL partition pruning only works when the query's WHERE clause contains the partition key (for deltas, that is `ts`). Queries filtered only on `market_ticker` cannot prune any partitions -- the planner must check all of them. The `idx_deltas_ticker_ts` index exists on each partition but does not help with `COUNT(*)` which still scans each partition's index segment for that ticker. The system was designed for single-market, time-bounded queries (`/orderbook` at a timestamp, `/deltas` in a time range) which partition-prune excellently, but cross-partition aggregation was not a design goal.
 
 **How to avoid:**
-- Before starting the replay, call the `/deltas` endpoint once with `limit=1` to check if data exists and get the first cursor. Parse `X-Credits-Remaining` from the response header.
-- Provide a `dry_run=True` option that estimates the number of pages needed (from the time range and typical delta density) and returns the estimated credit cost without actually fetching data.
-- Surface credit information on every yielded state: include `credits_used_so_far` and `credits_remaining` fields in the response objects.
-- Implement a `credit_budget` parameter: `replay_orderbook(ticker, start, end, credit_budget=100)`. If the replay would exceed this budget, stop and raise `CreditBudgetExceeded` with credits consumed so far.
-- Raise `CreditsExhaustedError` with a clear message when the API returns 429 with `credits_exhausted`, rather than raising a generic HTTP error. Include how many credits were consumed before exhaustion.
+- **Materialized coverage table**: Create a `market_coverage` table (or materialized view) that stores pre-computed per-market statistics: `ticker, first_data_at, last_data_at, snapshot_count, delta_count, last_updated`. Refresh it via a background job (cron every 5 minutes or triggered on each writer flush). The coverage dashboard reads from this table -- zero partition scanning.
+- **Incremental updates**: Instead of full recomputation, update coverage stats incrementally. When the `DatabaseWriter` flushes deltas, also update `market_coverage.last_data_at` and increment `delta_count`. This is O(1) per flush, not O(partitions) per query.
+- **Never run `COUNT(*)` across partitions at request time**. The existing `/markets/{ticker}` endpoint does exactly this (`SELECT COUNT(*) FROM deltas WHERE market_ticker = $1`) and it will degrade as data grows. Replace with the pre-computed count from the coverage table.
+- **Partition the coverage query if you must compute live**: If a materialized table is not ready in time, at minimum add a time bound to coverage queries: `WHERE ts >= now() - interval '7 days'` so the planner only touches recent partitions. Show approximate counts with `~` prefix rather than exact counts.
 
 **Warning signs:**
-- No credit cost information in SDK response objects.
-- Users discover credit exhaustion through raw HTTP 429 errors, not SDK-specific exceptions.
-- No `credit_budget` or cost estimation mechanism.
-- Support tickets from free-tier users saying "I made one call and all my credits are gone."
+- `GET /markets` response time exceeds 500ms.
+- `GET /markets/{ticker}` response time exceeds 200ms for markets with many deltas.
+- EXPLAIN ANALYZE shows sequential scans across 50+ partitions.
+- Database CPU spikes when the coverage dashboard loads.
+- Users see a loading spinner for 3+ seconds on the markets page.
 
 **Phase to address:**
-Phase 1 (SDK Core Design) for the credit-aware interface design. Phase 2 (Replay Abstraction) for integrating credit tracking into the pagination loop.
+Market Coverage phase -- this must be implemented BEFORE the coverage dashboard is built. Building the dashboard first with the existing slow queries, then trying to optimize later, means reworking the data layer under a live feature.
 
 ---
 
-### Pitfall 3: OpenAPI Auto-Generation Producing Unusable Python Code
+### Pitfall 3: Replay Visualization Rendering Every Frame, Freezing the Browser
 
 **What goes wrong:**
-The KalshiBook API uses FastAPI, which auto-generates an OpenAPI spec. You feed this spec into `openapi-generator` or `openapi-python-client` expecting a production-quality Python SDK. Instead you get: (a) generic exception handling that treats all non-2xx responses identically, losing the rich error codes (`credits_exhausted`, `market_not_found`, `rate_limit_exceeded`), (b) no async support (openapi-generator's Python output is sync-only by default), (c) verbose wrapper types that obscure the data (users have to navigate `response.data.data[0].market_ticker` instead of `response.markets[0].ticker`), (d) no pagination helpers, and (e) broken polymorphism when using `oneOf`/`anyOf` in the OpenAPI spec.
+The depth chart animation needs to render orderbook states over time -- visually showing how bid/ask levels change. The naive implementation sets up a `setInterval` or `requestAnimationFrame` loop that redraws the entire depth chart (SVG or Canvas area chart) for every frame of the replay. Each frame involves: (1) updating the yes/no level arrays, (2) recomputing the cumulative depth curves (sum quantities from best price outward), (3) rendering ~50-100 SVG path segments or Canvas draw calls for each side. At 30fps, this is 60 curve recomputations and 3,000+ draw operations per second. The JavaScript main thread blocks, mouse events stop being processed, the play/pause button becomes unresponsive, and the page appears frozen.
 
 **Why it happens:**
-OpenAPI generators are designed for breadth (50+ languages) not depth. DigitalOcean's post-mortem documented that `allOf`/`anyOf`/`oneOf` keywords caused openapi-generator to produce `UNKNOWNBASETYPE`, making endpoints unusable. The Python generator specifically lacks support for async/await, retry mechanisms, null/union types, and OAuth security schemes. The KalshiBook API has specific patterns (cursor-based pagination, credit headers, structured error envelopes) that no generator understands.
+Financial visualization libraries (Lightweight Charts, amCharts, etc.) are designed for time series data -- price over time on an X axis. Depth charts are fundamentally different: they show price on X and cumulative quantity on Y, updating the entire curve shape with each tick. There is no off-the-shelf React component for animated depth chart replay. Developers either (a) misuse a time-series library and get the wrong chart type, or (b) build a custom SVG depth chart that re-renders the entire React component tree on every state update, triggering expensive DOM reconciliation 30 times per second.
+
+The existing `OrderbookPreview` component (in `dashboard/src/components/playground/orderbook-preview.tsx`) renders a static table of price levels. Upgrading this to an animated depth chart is a fundamentally different rendering problem.
 
 **How to avoid:**
-- Do NOT auto-generate the SDK. Write it by hand. The KalshiBook API has only ~10 data endpoints -- this is a weekend of work, not a month. Hand-written code can be idiomatic, type-safe, and include the credit/pagination abstractions that are the SDK's entire value proposition.
-- Use the OpenAPI spec for documentation and validation only, not code generation.
-- If you must use a generator for initial scaffolding, use `openapi-python-client` (not `openapi-generator`) because it produces modern Python with type annotations and httpx. But plan to immediately rewrite the generated code.
-- Model your SDK structure after the Azure SDK design guidelines: separate sync/async clients, ItemPaged protocol for collections, typed exceptions for each error code, credential parameter in constructor.
+- Use **HTML5 Canvas**, not SVG, for the depth chart. Canvas is imperative -- you draw directly to a bitmap, no DOM reconciliation. For 30fps animation with 100+ data points per side, Canvas is 10-100x faster than React-managed SVG.
+- **Separate the render loop from React's component lifecycle**. Use a `useRef` for the Canvas element and a standalone `requestAnimationFrame` loop that reads from a mutable data source (e.g., a `useRef` holding the current frame data). React never re-renders the canvas component itself -- only the controls (play/pause, timeline slider) are React-managed.
+- **Pre-compute cumulative depth curves** during data loading, not during rendering. When the replay data arrives, immediately compute the cumulative sum for each frame's yes/no sides and store the results. During animation, the render loop just draws pre-computed curves -- no math per frame.
+- **Throttle visual updates** to the monitor's refresh rate (typically 60fps). Even if the replay has one orderbook state per second covering a 1-hour period (3,600 states), the playback speed might be 60x, meaning 60 states per second -- perfectly aligned with `requestAnimationFrame`. But do NOT try to render 200,000 states at 60fps.
+- **Use `OffscreenCanvas`** in a Web Worker for the depth chart rendering if the main thread is still too busy (e.g., because other dashboard components are updating). This keeps the UI responsive.
 
 **Warning signs:**
-- SDK contains generated code comments like `# TODO update the JSON string below`.
-- Exception handling is a single `ApiException` class for all errors.
-- Users have to import deeply nested generated module paths.
-- Generated code does not use `async`/`await`.
-- You are spending more time fighting the generator's output than writing code.
+- Depth chart component re-renders via React state updates on every frame.
+- SVG elements with hundreds of `<path>` or `<rect>` elements being added/removed on each tick.
+- Frame rate drops below 15fps during replay playback.
+- Browser DevTools shows "Long Task" warnings exceeding 50ms.
+- Play/pause button has perceptible delay (>200ms) when clicked during active replay.
 
 **Phase to address:**
-Phase 1 (SDK Core Design) -- this is a "make or buy" decision that must be resolved before any SDK code is written. Choosing wrong means rewriting from scratch.
+Replay Visualization phase -- the rendering architecture (Canvas vs SVG, React lifecycle management) must be decided at component design time. Switching from SVG to Canvas after building the component requires a complete rewrite.
 
 ---
 
-### Pitfall 4: Cursor Handling Bugs Creating Infinite Loops or Missing Data
+### Pitfall 4: Playground Demo Data Burning Real User Credits
 
 **What goes wrong:**
-The SDK's pagination loop has a subtle bug in cursor handling. The KalshiBook API uses a composite (timestamp, id) cursor encoded as base64 JSON (see `_encode_cursor` / `_decode_cursor` in `deltas.py`). Three failure modes: (1) The SDK receives `has_more=True` but `next_cursor=None` (should never happen, but the API has a code path where `rows` is empty despite `has_more`), and the SDK loops forever with no cursor. (2) The cursor is malformed (truncated base64, timezone-naive timestamp) and the API returns 422, which the SDK retries infinitely. (3) Time range boundary issues -- deltas at exactly `end_time` may or may not be included depending on `<=` vs `<` comparison (the API uses `<=` for deltas but `<` for trades), and the SDK does not normalize this, causing users to see different behavior for different endpoints.
+The playground's "Try an example" feature needs to populate with real captured market data so new users see a working orderbook. The current implementation (see TODO `2026-02-17-pre-populate-playground-with-real-captured-market-data.md`) hardcodes a ticker and timestamp, and when the user clicks "Send Request," it makes a real API call via their API key, deducting 5 credits (the `require_credits(5)` dependency on the `/orderbook` endpoint). A new free-tier user with 1,000 credits who clicks "Try an example" 5 times during exploration burns 25 credits -- 2.5% of their monthly allowance -- just trying to understand what the product does. Worse, if the playground adds replay visualization that internally makes multiple API calls (snapshot + N delta pages), a single "try the replay demo" could cost 50-100+ credits.
 
 **Why it happens:**
-Cursor-based pagination looks simple but has many edge cases. The KalshiBook API's cursor encoding uses `datetime.fromisoformat()` which has different behavior for timezone-aware vs timezone-naive strings. The `_decode_cursor` function in `deltas.py` adds UTC if missing, but if the SDK generates a cursor locally (e.g., for seek-to-timestamp), it might produce a timezone-naive string. The `has_more` / `next_cursor` contract is also fragile: the API determines `has_more` by fetching `limit + 1` rows, but if exactly `limit + 1` rows exist, it returns `has_more=True` and a cursor pointing to a position with 0 remaining rows. The next request returns an empty `data` array with `has_more=False`, which is correct but unexpected.
+The existing billing system (in `src/api/deps.py`) applies credit deduction uniformly through the `require_credits()` dependency. There is no concept of a "demo mode" or "sandbox request" -- every API call through the playground is a real, billed API call. This was acceptable when the playground only had a single endpoint, but with replay (which makes many internal calls) and a curated demo experience, the credit cost of exploration becomes a conversion-killing friction point.
 
 **How to avoid:**
-- Add defensive checks in the pagination loop: if `has_more=True` but `next_cursor is None`, break and log a warning. If `data` is empty regardless of `has_more`, break.
-- Set a hard maximum iteration count (e.g., 10,000 pages). If reached, raise `PaginationError("Exceeded maximum page count -- possible infinite loop")`.
-- Never construct cursors on the client side. Always use server-provided cursors only.
-- Normalize time range semantics in the SDK: document and enforce that `start_time` is inclusive and `end_time` is exclusive for ALL endpoints, adding the appropriate adjustment for endpoints that use `<=` (like deltas).
-- Write integration tests that paginate through a known dataset and verify total record count matches expectations. Test the edge case where total records are an exact multiple of page size.
+- **Pre-bake demo responses**: For the "Try an example" feature, store the response JSON server-side (e.g., a static JSON file in the Next.js `public/` directory or a cached API response). When the user clicks "Try an example," serve the pre-baked response directly -- zero API calls, zero credit cost. The response should be clearly labeled as "Sample data" to avoid confusion.
+- **Dedicated demo endpoint**: Create an unauthenticated `GET /demo/orderbook` endpoint that returns a curated orderbook response from a real market at a known-good timestamp. This endpoint is not metered, not authenticated, and returns a fixed response. Limit it to specific pre-selected market/timestamp pairs.
+- **For replay demo**: Pre-compute a full replay sequence for one curated market and serve it as a static asset. A 5-minute replay at 1-second intervals is only 300 frames of data -- compresses to ~50KB. Load this directly in the browser without any API calls.
+- **Free demo credits**: If real API calls must be used for demos, add a separate `demo_credits` field to `billing_accounts` that is deducted first for playground requests originating from the dashboard. These credits do not count toward the monthly limit and are not PAYG-billed. This is the most complex solution and should be avoided if pre-baked responses suffice.
+- **Flag playground requests**: Add a `X-Playground: true` header from the Next.js proxy. The billing middleware can track playground usage separately and potentially exempt it, or at minimum report it so you can see how many credits users burn on exploration vs. production use.
 
 **Warning signs:**
-- SDK hangs indefinitely when replaying data.
-- Users report "the last page is always empty" (this is actually correct behavior but feels like a bug).
-- Inconsistent record counts when fetching the same data with different page sizes.
-- No maximum iteration guard in the pagination loop.
+- New users exhaust free credits within their first session without making a single production API call.
+- Users sign up, try the playground once, see credits deducted, and never return.
+- Analytics show high playground usage correlating with high churn among free-tier users.
+- Replay demo costs 50+ credits per "try it" click.
 
 **Phase to address:**
-Phase 2 (Pagination Abstraction) -- must be designed with edge cases in mind. Integration tests against the real API are essential before release.
+Playground Data Population phase -- must be solved before adding replay to the playground. The replay demo's credit cost amplifies this problem by 10-50x compared to the single-request playground.
 
 ---
 
-### Pitfall 5: PyPI Packaging Mistakes That Block Installation or Break User Environments
+### Pitfall 5: Archived Data Invisible to Coverage Dashboard
 
 **What goes wrong:**
-Five specific packaging failures: (1) Over-pinning dependencies -- requiring `pydantic>=2.12.5` (same version as the server) when the SDK only uses basic Pydantic v2 features. A user with `pydantic==2.8.0` in their project gets a dependency conflict and cannot install the SDK. (2) Missing `py.typed` marker file, so mypy/pyright users get no type checking benefits. (3) Publishing with `setup.py sdist bdist_wheel` instead of the modern `python -m build` + trusted publisher workflow, leaking PyPI API tokens. (4) Package name contains underscores (`kalshibook_sdk`) but the import uses hyphens or vice versa, causing import errors after `pip install`. (5) Shipping test files, dev dependencies, or the server code in the published package because `packages=find_packages()` includes everything.
+The archival system (`src/collector/archival.py`) moves old deltas and snapshots from PostgreSQL to Parquet files in Supabase Storage, then DROPS the source partitions. After archival runs, `SELECT MIN(captured_at) FROM snapshots WHERE market_ticker = $1` no longer finds the oldest data -- it only sees data that is still in hot storage. The coverage dashboard shows `first_data_at: 2026-02-11` (when archival ran) instead of `first_data_at: 2026-02-13` (when collection actually started). Worse, `delta_count` drops by thousands overnight when archival removes old partitions. Users see their data coverage "shrinking" and file support tickets thinking data was lost.
 
 **Why it happens:**
-Python packaging has changed significantly and there are many legacy patterns in tutorials. The project already uses `pyproject.toml` (good), but the server's `pyproject.toml` bundles everything. The SDK needs its own `pyproject.toml` in a separate directory or a monorepo-aware build system. Pydantic version conflicts are the most common real-world SDK installation failure in 2025-2026 -- pydantic-core is tightly coupled to specific pydantic versions, and over-pinning cascades into every project that depends on both pydantic and the SDK.
+The archival system and the coverage dashboard operate on different data stores. Archival removes data from PostgreSQL and puts it in Supabase Storage (Parquet files). The coverage queries only read PostgreSQL. There is no metadata layer that tracks "this market has data from date X to date Y across both hot and cold storage." The `market_coverage` table (if built) only reflects hot storage unless explicitly designed to include archived ranges.
 
 **How to avoid:**
-- Use minimal dependency bounds: `pydantic>=2.0,<3`, `httpx>=0.24`, not pinned to the exact version the server uses. Test against the minimum supported versions in CI.
-- Create the SDK in a separate `sdk/` directory with its own `pyproject.toml`. Never ship server code in the SDK package.
-- Include `py.typed` marker file for PEP 561 compliance.
-- Use PyPI Trusted Publishing (OIDC) via GitHub Actions -- no API tokens to leak. Configure the publisher on pypi.org before first publish.
-- Use `[project]` table in `pyproject.toml` (not `[tool.setuptools]`) with explicit `packages` listing. Verify the published package contents with `tar -tzf dist/*.tar.gz` before uploading.
-- Ensure package name in `pyproject.toml` uses hyphens (`kalshibook-sdk`), import name uses underscores (`kalshibook_sdk`), and both are consistent.
-- Test installation in a clean venv: `pip install dist/*.whl && python -c "from kalshibook_sdk import Client"`.
+- **Track archival boundaries in the coverage table**: When archival runs, update `market_coverage.archived_through` to record the latest date that was archived. The coverage dashboard shows `first_data_at` as the minimum of `archived_first_data_at` and the hot storage's `MIN(captured_at)`.
+- **Write archival metadata before deleting**: Before the `_delete_archived_data()` method drops a partition, write a record to an `archive_inventory` table: `(market_ticker, date, delta_count, snapshot_count, parquet_path)`. The coverage dashboard can aggregate from this table for dates before the archival cutoff.
+- **Alternatively, never drop coverage metadata**: The `first_data_at` and `last_data_at` for a market should be stored in the `markets` table itself (or a coverage table) and NEVER recomputed from the source data. Update these columns on write, not on read. Archival does not touch them.
+- **Test with archival running**: Any coverage dashboard test must include a scenario where archival has run and removed historical data. If the dashboard only works with all data in hot storage, it will break in production within `hot_storage_days` (default: likely 7-14 days).
 
 **Warning signs:**
-- `pip install kalshibook-sdk` fails with `ResolutionImpossible` due to pydantic version conflict.
-- `import kalshibook_sdk` raises `ModuleNotFoundError` after successful install.
-- mypy reports `error: Skipping analyzing "kalshibook_sdk": module is installed, but missing library stubs or py.typed marker`.
-- Published package contains `src/api/`, `tests/`, or `__pycache__/` directories.
-- PyPI API token stored in GitHub secrets (should use trusted publishing instead).
+- Coverage dashboard shows different `first_data_at` before and after archival runs.
+- `delta_count` for a market decreases overnight.
+- Users ask "why did my data coverage date change?"
+- Coverage dashboard shows zero data for markets that have only archived data.
 
 **Phase to address:**
-Phase 3 (Packaging & Publishing) -- but dependency bounds must be decided in Phase 1 when choosing which libraries the SDK uses. The `py.typed` marker and package structure should be set up at project scaffolding time.
+Market Coverage phase -- the archival-awareness must be designed into the coverage data model from the start. Retrofitting it after users have seen (and relied on) "incorrect" coverage dates requires a migration and erodes trust.
 
 ---
 
-### Pitfall 6: Auth Token Management Causing Silent Request Failures
+### Pitfall 6: N+1 Query Pattern in Coverage Dashboard
 
 **What goes wrong:**
-The SDK stores the API key and makes authenticated requests. Three failure modes: (1) The user passes a Supabase JWT (from `/auth/login`) instead of an API key (starts with `kb-`), and the SDK sends it to data endpoints, which expect `kb-` keys. The API returns 401 with `invalid_api_key` but the error message ("The provided API key is invalid or has been revoked") does not mention the JWT/API-key distinction. (2) The user constructs the client with an expired or revoked key, and every request fails with 401 but the SDK does not raise a clear "your key is invalid" error on construction. (3) When the SDK is used in a long-running process (backtesting loop), the API key works initially but is revoked mid-process. Each subsequent request fails individually rather than the SDK detecting the pattern and raising a persistent auth failure.
+The coverage dashboard shows a grid/table of all markets with their coverage statistics. The naive implementation fetches the market list, then for each market individually queries snapshot count, delta count, first/last data timestamps, and data completeness. With 500+ tracked markets (the discovery system has `max_subscriptions: 1000`), this generates 500+ individual database queries per page load. Each query takes 5-20ms (partition scanning), totaling 2.5-10 seconds of pure database time before the page can render.
+
+The existing `GET /markets` endpoint already shows this pattern: correlated subqueries run for each row in the `markets` table. As the markets count grows from tens to hundreds, this endpoint will linearly slow down.
 
 **Why it happens:**
-The KalshiBook API has two auth mechanisms: Supabase JWTs for account management (`/auth/*`, `/keys/*`) and API keys for data endpoints (`/orderbook`, `/deltas`, etc.). This dual-auth design is sensible for the API but confusing for SDK users. The error response from `InvalidApiKeyError` does not distinguish between "wrong auth mechanism" and "invalid key." The SDK user just sees 401 and does not know which credential to use.
+The correlated subquery pattern in `GET /markets` was fine when there were 20-30 markets. It is a natural way to write the query -- "for each market, find its data range." But correlated subqueries execute per row, and each subquery hits partitioned tables. The compound cost is `markets * partitions * index_scans`. Developers test with 10 markets and never see the problem.
 
 **How to avoid:**
-- Validate the API key format on client construction: `if not api_key.startswith("kb-"): raise ValueError("API key must start with 'kb-'. Did you pass a JWT access token? Use POST /auth/login to get a JWT, then POST /keys to create an API key.")`.
-- Make one lightweight request (e.g., `GET /health` or a no-op) on client initialization to verify the key works. Surface auth failures immediately, not on the first data request.
-- Implement a "persistent auth failure" detector: if 3 consecutive requests return 401, raise `AuthenticationError("API key appears to be revoked or invalid. Generate a new key at [dashboard URL].")` instead of retrying each request individually.
-- Clearly document in the SDK README: "This SDK uses API keys (kb-...), not access tokens. Create an API key in the dashboard or via the /keys endpoint."
+- **Pre-computed coverage table** (same solution as Pitfall 2): Eliminate the correlated subqueries entirely. The coverage dashboard reads from `market_coverage` which has one row per market with all statistics pre-computed.
+- **If computing live, use set-based aggregation**: Replace correlated subqueries with JOINs to pre-aggregated CTEs:
+  ```sql
+  WITH delta_stats AS (
+    SELECT market_ticker, MIN(ts) AS first_delta, MAX(ts) AS last_delta, COUNT(*) AS delta_count
+    FROM deltas
+    WHERE ts >= now() - interval '7 days'  -- Bounded time range for partition pruning!
+    GROUP BY market_ticker
+  ),
+  snapshot_stats AS (
+    SELECT market_ticker, MIN(captured_at) AS first_snapshot, COUNT(*) AS snapshot_count
+    FROM snapshots
+    GROUP BY market_ticker
+  )
+  SELECT m.ticker, d.*, s.*
+  FROM markets m
+  LEFT JOIN delta_stats d ON d.market_ticker = m.ticker
+  LEFT JOIN snapshot_stats s ON s.market_ticker = m.ticker
+  ```
+  This scans each partition once (not once per market) and groups results. With `enable_partitionwise_aggregate = on`, PostgreSQL can aggregate within each partition and merge results.
+- **Add pagination to the coverage endpoint**: Do not return all 500+ markets in one response. Paginate with 50 markets per page, allowing the database to handle smaller result sets.
 
 **Warning signs:**
-- Users opening issues saying "I'm passing my login token but getting 401."
-- No validation of API key format at client construction time.
-- Long-running SDK processes silently failing on every request after key revocation.
-- SDK constructor accepts any string as `api_key` without basic format validation.
+- Database connection pool exhaustion during coverage page loads (20 connections used for one request).
+- EXPLAIN ANALYZE shows "Loops: 500" on subquery nodes.
+- Coverage page response time grows linearly with market count.
+- `pg_stat_activity` shows dozens of concurrent queries from a single HTTP request.
 
 **Phase to address:**
-Phase 1 (SDK Core Design) -- auth handling is part of the client constructor, which is the first thing designed.
+Market Coverage phase -- the query pattern must be set-based or pre-computed from the outset. Fixing N+1 after launch means rewriting the coverage API, the database queries, and potentially adding a background job system.
 
 ---
 
-### Pitfall 7: SDK Version Coupled to API Version, Breaking Users on Every API Deploy
+### Pitfall 7: Replay Playback Controls That Ignore Browser Tab Visibility
 
 **What goes wrong:**
-The SDK version and the API version are the same (`0.1.0`), or the SDK pins to a specific API contract. When the API adds a new optional field to a response (non-breaking on the API side), the SDK's Pydantic models reject the unknown field and raise `ValidationError`. When the API deprecates a field, old SDK versions break. Users are forced to upgrade the SDK every time the API changes, even for additive changes. This is especially painful because Python SDK upgrades may conflict with other dependencies.
+The replay visualization has a "play" button that animates the depth chart over time. When the user switches to another browser tab, `requestAnimationFrame` stops firing (browsers throttle background tabs). But if the replay uses `setInterval` or tracks elapsed wall-clock time, it keeps "playing" in the background -- when the user switches back, the chart jumps forward by the elapsed time, skipping all the intermediate frames. The user sees a jarring discontinuity. Alternatively, if the timer accumulates while paused, the replay tries to "catch up" by rendering hundreds of frames rapidly when the tab regains focus, freezing the browser.
 
 **Why it happens:**
-Pydantic v2's default behavior is to raise errors for unknown fields (`model_config = ConfigDict(strict=True)`) or ignore them silently depending on configuration. If the SDK uses strict validation, any new API field breaks old SDK versions. If it uses permissive validation, removed fields silently become `None`, causing `AttributeError` in user code that accessed them. Neither default is correct without explicit design.
+`requestAnimationFrame` is designed for visual rendering and correctly pauses when the tab is hidden. But developers often combine it with `Date.now()` to calculate delta-time for animation progress, creating a mismatch: the animation frame fires once when the tab becomes visible again, but `Date.now() - lastFrameTime` returns a large value (seconds or minutes), causing the playback position to leap forward.
 
 **How to avoid:**
-- SDK version is independent of API version. SDK `1.2.3` works with API `v1` -- any backward-compatible API change.
-- Configure Pydantic models with `model_config = ConfigDict(extra="ignore")` -- unknown fields from newer API versions are silently dropped, not rejected. This is the forward-compatibility default.
-- Never remove fields from SDK response models without a major version bump. Deprecate with warnings first.
-- Use the API's `version` field (if/when added) or OpenAPI spec version for compatibility checks, not the SDK version.
-- Include the SDK version in the `User-Agent` header (`KalshiBook-Python/1.2.3`) so the API can track SDK version distribution and know when it is safe to remove deprecated fields.
-- Pin to an API version prefix in the base URL (e.g., `/v1/`) so the SDK is not affected by v2 deployments.
+- Use **frame-counting**, not wall-clock time, for replay progress. Each `requestAnimationFrame` callback advances the replay by exactly one frame/step regardless of how much real time has passed. This naturally pauses when the tab is hidden.
+- Implement the `document.visibilitychange` event listener. When the tab becomes hidden, auto-pause the replay. When it becomes visible, resume from the last rendered frame (not from where it "would have been").
+- Store the **current frame index** as the authoritative playback position. The timeline scrubber, play/pause state, and rendering loop all reference this single value. Wall clock time is never used for replay progress.
+- Allow **adjustable playback speed** (1x, 2x, 5x, 10x) where speed is "frames per requestAnimationFrame callback," not "real-time-to-replay-time ratio."
 
 **Warning signs:**
-- Users pinning the SDK to an exact version (`kalshibook-sdk==0.1.0`) because newer versions break.
-- Pydantic `ValidationError` for unknown fields in SDK responses after an API deploy.
-- SDK releases required for every API deploy, even non-breaking ones.
-- No `User-Agent` header identifying the SDK version.
+- Replay jumps forward when returning to the tab.
+- Browser freezes momentarily when switching back to the tab during replay.
+- Replay position does not match the timeline scrubber after tab-switching.
+- Replay at "1x speed" runs faster on a 120Hz monitor than a 60Hz monitor (indicating coupling to `requestAnimationFrame` rate without normalization).
 
 **Phase to address:**
-Phase 1 (SDK Core Design) for model configuration and versioning strategy. Phase 3 (Packaging) for independent version numbering. The API should add `/v1/` prefix before the SDK ships.
+Replay Visualization phase -- the playback controller architecture must handle tab visibility from the initial implementation. This is not a polish item -- it affects the core animation loop design.
+
+---
+
+### Pitfall 8: Coverage Completeness Metric That Lies About Data Quality
+
+**What goes wrong:**
+The coverage dashboard shows a "completeness" percentage for each market -- intending to answer "how much of this market's trading life do we have data for?" The naive calculation is `(last_data - first_data) / (market_close - market_open) * 100`. But this ignores sequence gaps (recorded in the `sequence_gaps` table), overnight periods with no trading, and archival boundaries. A market that was actively collected for 23 out of 24 hours but had a 1-hour gap during peak trading shows 95.8% completeness -- but the missing hour might be the most valuable data. The user trusts the high percentage and builds a backtest, only to discover missing data at critical moments.
+
+**Why it happens:**
+"Completeness" is harder to define than it appears. The collector records sequence gaps (`sequence_gaps` table) when it detects missing sequences, and these gaps trigger resubscription. But the gap records tell you WHEN a gap occurred, not how much data was lost (the gap size is `received_seq - expected_seq` which is in sequence numbers, not time duration). Converting sequence gaps to time-based coverage holes requires knowing the typical delta rate for that market, which varies by time of day and market activity.
+
+**How to avoid:**
+- **Do not show a single completeness percentage**. Instead, show a **timeline heatmap**: a horizontal bar per market where each hour/day is colored (green = data, red = gap, gray = no trading). This gives users a visual sense of coverage without a misleading number.
+- **If you must show a number**, define it precisely: "Percentage of 1-minute intervals within the data range that contain at least one delta." This is computable from the deltas table: `SELECT COUNT(DISTINCT date_trunc('minute', ts)) FROM deltas WHERE market_ticker = $1 AND ts BETWEEN $2 AND $3`, divided by total minutes in the range.
+- **Surface gap information explicitly**: Show the `sequence_gaps` count per market in the coverage view. "3 sequence gaps detected" is more honest than "99.2% complete."
+- **Distinguish between "no data" and "no activity"**: Some markets have legitimate zero-activity periods (overnight, weekends for non-crypto). The coverage metric should exclude these periods. Cross-reference with Kalshi market schedules or use the trades table as a proxy for "market was active."
+- Pre-compute the minute-level coverage in the background job, not at query time. Scanning deltas for `COUNT(DISTINCT date_trunc('minute', ts))` across all partitions is expensive.
+
+**Warning signs:**
+- Coverage shows 100% for markets with known gaps.
+- Users build backtests and find missing data periods that the dashboard did not flag.
+- Coverage percentage is expensive to compute (>500ms query).
+- No reference to the `sequence_gaps` table in the coverage logic.
+
+**Phase to address:**
+Market Coverage phase -- the completeness metric design is a product decision that affects both the API response schema and the dashboard UI. Get the definition right before building the aggregation query.
 
 ---
 
@@ -195,115 +251,111 @@ Phase 1 (SDK Core Design) for model configuration and versioning strategy. Phase
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Auto-generating SDK from OpenAPI spec | Fast initial client with all endpoints covered | Generic exceptions, no pagination helpers, no credit awareness, no async support. Must rewrite anyway for the replay abstraction | Never for this project -- the replay abstraction IS the SDK's value, and generators cannot produce it |
-| Sync-only SDK (no async) | Simpler implementation, fewer tests | Users in async frameworks (FastAPI, asyncio-based bots) must wrap every call in `asyncio.run()`. Financial quant code increasingly uses asyncio | Only for initial alpha; async must come in v1.0 |
-| Returning raw dicts instead of typed models | Faster development, no Pydantic dependency | No autocomplete, no type checking, runtime KeyErrors for typos, no forward-compatibility control | Never -- typed models are table stakes for a data SDK |
-| Single HTTP client per function call (no session reuse) | Simpler per-function logic | Connection overhead on every call. replay_orderbook making 200+ requests without connection reuse is catastrophically slow | Never -- httpx.AsyncClient must be shared |
-| Vendoring httpx or pydantic | Avoids dependency conflicts | Massive package size, security patches not inherited, confusing for users | Never |
-| Publishing to PyPI with API token instead of trusted publisher | Works without OIDC setup | Token can leak, no attestation, manual rotation needed | Only for initial test publish to TestPyPI |
+| Serving replay data as one giant JSON response | Simple implementation, works for small replays | Browser OOM for large replays, no progressive rendering, cache-unfriendly | Never -- streaming or chunked delivery should be the default |
+| Computing coverage stats via live queries on partitioned tables | No new tables or background jobs needed | O(partitions * markets) query cost, coverage page becomes unusable at 100+ markets * 30+ partitions | Only as an initial prototype with <20 markets, must be replaced before any real traffic |
+| Using SVG for depth chart animation | Familiar React rendering, easy tooltips and hover states | Re-renders trigger DOM reconciliation, frame rate drops below 15fps at 100+ price levels | Acceptable for static (non-animated) depth chart preview only |
+| Hardcoding demo market ticker in playground | Ships fast, no infrastructure needed | Ticker expires when market settles, playground breaks for new users | Only until dynamic example selection is built -- must have a fallback mechanism |
+| Using the same API endpoint for playground demos and production requests | No code duplication, billing logic stays consistent | Demo exploration costs real credits, discouraging new users from experimenting | Never for replay demos (too expensive). Acceptable for single-endpoint demos only with clear credit cost disclosure |
+| Storing replay animation state in React useState | Familiar React pattern | 30-60 state updates per second trigger re-renders of the component tree, causing frame drops | Never for the animation loop -- use refs and imperative Canvas updates |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| KalshiBook API Auth | Accepting any string as API key in SDK constructor | Validate `kb-` prefix immediately. Provide clear error distinguishing API keys from JWTs |
-| Credit Headers | Ignoring `X-Credits-Remaining` and `X-Credits-Cost` response headers | Parse and surface on every response object. Use for credit budget enforcement in replay functions |
-| Cursor Pagination | Constructing cursors on the client side or caching cursors across sessions | Always use server-provided cursors from `next_cursor`. Cursors are opaque tokens -- do not decode or construct them |
-| Error Responses | Treating all non-2xx as generic errors | Map `error.code` to specific exceptions: `CreditsExhaustedError`, `MarketNotFoundError`, `RateLimitError`, `ValidationError`, `AuthenticationError` |
-| Rate Limit Headers | Ignoring `Retry-After` header on 429 responses | Parse `Retry-After` and implement automatic backoff. SDK should sleep and retry transparently (with configurable max retries) |
-| Time Zones | Passing naive datetimes to API endpoints | SDK should reject timezone-naive datetimes or explicitly attach UTC. The API uses timezone-aware ISO 8601 timestamps |
-| Deltas vs Trades boundary semantics | Assuming all endpoints use the same time range inclusion (`<=` vs `<`) | Deltas endpoint uses `ts <= end_time`, trades uses `ts < end_time`. SDK should normalize to consistent semantics (exclusive end) |
+| Archival system + Coverage dashboard | Coverage queries only check hot storage (PostgreSQL), ignoring archived data in Supabase Storage | Track archival boundaries in a metadata table. `first_data_at` should reflect the earliest available data across both hot and cold storage |
+| Billing system + Playground demos | Playground requests go through `require_credits()` just like production API calls | Pre-bake demo responses as static JSON or create a zero-cost demo endpoint. Replay demos should NEVER use live API calls |
+| Daily-partitioned deltas + Coverage aggregation | Running `COUNT(*)` or `MIN/MAX` across all partitions without time bounds | Always bound coverage queries with a time range for partition pruning, or use pre-computed statistics in a `market_coverage` table |
+| Existing orderbook reconstruction + Replay | Calling `reconstruct_orderbook()` N times to generate N replay frames | Build a streaming reconstruction function that processes deltas incrementally, yielding states at intervals, using a single database query for the delta range |
+| Next.js App Router + SSE streaming | Using `pages/api/` (Pages Router) for streaming endpoints, which buffers responses | Use Route Handlers in `app/api/` with `ReadableStream` for true streaming. The dashboard already uses App Router |
+| Canvas rendering + React lifecycle | Calling `setState` to trigger re-renders for each animation frame | Use `useRef` for canvas element and data, manage the animation loop outside React's render cycle with `requestAnimationFrame` |
+| Sequence gaps table + Coverage completeness | Ignoring gap records when computing data completeness | Cross-reference `sequence_gaps` with delta timestamps to identify actual coverage holes, not just sequence number discontinuities |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Creating new httpx.AsyncClient per request | Connection establishment overhead, no HTTP/2 multiplexing, DNS resolution per call | Create client once in `__aenter__`, reuse for all requests, close in `__aexit__` | Noticeable at >10 requests. Catastrophic for replay (200+ requests) |
-| Loading all paginated results into memory before yielding | MemoryError for large time ranges, long time-to-first-result | Use async generators that yield per-page results. Never call `list()` internally | >50 pages (50K deltas, ~10MB+ in Python objects) |
-| No connection pooling limits | SDK opens unlimited connections to API, triggering server rate limits or connection exhaustion | Set `httpx.AsyncClient(limits=httpx.Limits(max_connections=10))` | >10 concurrent replay operations |
-| Serializing/deserializing every response field | CPU overhead from full Pydantic validation on large delta arrays | Use `model_validate` with `strict=False`, consider `model_construct` for trusted API responses if performance-critical | >10K records per page (unlikely given current 1000 max limit, but relevant for future bulk endpoints) |
-| Blocking event loop with CPU-bound orderbook reconstruction | UI/bot freezes during replay processing | Run delta application logic in executor if reconstruction is CPU-bound. For most cases, it is fast enough in-loop | >100K deltas applied to a single book state |
-| No response caching for repeated identical requests | Redundant API calls and credit waste during development/testing | Provide optional `cache=True` parameter that caches GET requests by URL+params. Use TTL-based in-memory cache (not disk) | Development and testing. Production should not cache by default |
+| Live `COUNT(*)` on partitioned deltas table per market | Coverage page loads in 3-10+ seconds | Pre-computed `market_coverage` table updated by background job | >50 markets * >30 daily partitions (~50 days of data) |
+| Correlated subqueries in `GET /markets` (existing code) | Linear slowdown with market count, each subquery scans all partitions | Replace with CTE-based set aggregation or materialized view | >100 markets, already slow at 50+ with many partitions |
+| Full JSON response for replay data (no streaming) | Browser hangs parsing large JSON, no progressive rendering | SSE streaming or chunked transfer, send replay frames incrementally | >5MB response (~1 hour of active market replay data) |
+| SVG depth chart with React re-renders at 30fps | Frame drops, unresponsive UI, Chrome DevTools "Long Task" warnings | Canvas rendering with imperative draw loop, outside React lifecycle | >50 price levels per side, always breaks at animation speed |
+| No index on `market_coverage.ticker` (new table) | Full table scan on every coverage lookup, O(markets) per request | Create unique index on `(ticker)` at table creation time | >100 markets, immediately noticeable without index |
+| Loading all replay frames into browser memory before starting playback | High time-to-first-frame, memory spike at load, no feedback during loading | Stream frames and start playback after first batch arrives, buffer ahead of playback position | >1,000 replay frames (>15 minutes at 1-frame-per-second resolution) |
+| `requestAnimationFrame` loop computing cumulative depth on every frame | CPU-bound main thread, janky animations | Pre-compute cumulative depth curves during data loading, render loop only draws | >100 price levels per side, noticeable at >30fps |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| API key logged in debug output or exception tracebacks | Key leaked in log files, CI output, or error reporting services | Mask API key in all logging: show only prefix `kb-abc...`. Override `__repr__` on client class to mask key. Use httpx's `auth` parameter (masks in logs) rather than manually setting Authorization header |
-| API key stored in source code or notebook cells | Key committed to version control, shared in notebooks | SDK docs must show `api_key=os.environ["KALSHIBOOK_API_KEY"]` pattern. Accept env var name as alternative to raw key: `Client.from_env("KALSHIBOOK_API_KEY")` |
-| No TLS certificate verification | Man-in-the-middle attack intercepts API key and financial data | httpx verifies TLS by default. Never set `verify=False`. Document that self-signed certs are not supported |
-| SDK sends credentials to wrong host | Phishing or DNS hijack steals API key | Hardcode the API base URL. Do not allow user-provided base URLs in production mode. If allowing custom base URL (for testing), validate HTTPS and warn on non-production domains |
+| Demo endpoint returning data for ANY market/timestamp without authentication | Unauthenticated data exfiltration -- competitors scrape full orderbook history for free via the demo endpoint | Demo endpoint only serves pre-selected, curated market/timestamp pairs. Do not accept arbitrary tickers or timestamps on unauthenticated endpoints |
+| Replay endpoint returning unlimited time ranges without rate limiting | Single API key can scrape months of data rapidly by requesting maximum time ranges | Enforce `max_time_range` per request (e.g., 4 hours), add per-key rate limiting on replay endpoint (e.g., 10 replay requests per minute), credit cost proportional to time range |
+| Coverage dashboard exposing internal metadata (gap counts, archival dates) to unauthorized users | Competitors learn your data collection schedule, gap patterns, and coverage weaknesses | Coverage data should require authentication. The public view shows only "data available: yes/no" and rough date ranges, not precise gap information or delta counts |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Replay function returns raw delta records instead of structured orderbook states | User must implement their own snapshot+delta application logic -- defeating the purpose of the SDK | `replay_orderbook()` should yield `OrderbookState` objects with `yes_levels`, `no_levels`, `timestamp`, `spread`, and helper methods |
-| No progress indication during long replays | User thinks the process is hung during a 200-page replay | Accept an optional `progress_callback` or log progress. Yield partial results so `async for` shows activity |
-| Error messages reference HTTP status codes, not user actions | "HTTP 429" means nothing to a Python developer who has never seen the API docs | "Monthly credit limit reached. You have used 1000/1000 credits. Enable PAYG or upgrade at https://kalshibook.com/billing" |
-| Inconsistent method naming between sync and async | `client.get_orderbook()` vs `async_client.async_get_orderbook()` -- cognitive overhead | Azure pattern: identical method names, different client classes. `Client.get_orderbook()` (sync) and `AsyncClient.get_orderbook()` (async) |
-| No Jupyter notebook support | Financial data users overwhelmingly work in notebooks. `asyncio.run()` conflicts with notebook's event loop | Provide sync client that works in notebooks without async. Detect notebook environment and use `nest_asyncio` or provide `await`-ready methods |
-| SDK requires reading API docs to understand credit costs | User has no idea that `replay_orderbook()` costs 5 + 2*N credits until they run out | Docstrings must state credit costs. `replay_orderbook()` should document "This function costs 5 credits for the initial snapshot plus 2 credits per page of deltas fetched." |
+| Replay visualization with no timeline scrubber | User can only watch linearly, cannot skip to interesting moments, cannot pause and inspect a specific state | Full timeline scrubber with click-to-seek, play/pause, speed control (1x/2x/5x/10x), and frame-by-frame step buttons |
+| Coverage dashboard showing only raw numbers (snapshot_count: 4521) | Numbers are meaningless without context -- is 4521 snapshots a lot? | Show visual timeline coverage bar, color-coded by data density. Show relative metrics: "12 hours of data at ~10 snapshots/hour" |
+| Loading replay data with no progress indicator | User clicks "replay" and sees nothing for 3-5 seconds while data loads, thinks the feature is broken | Show a progress bar during data loading ("Loading orderbook history... 45%"). Start rendering as soon as first frames arrive (progressive loading) |
+| Depth chart with no price axis labels or quantity tooltips | User sees colored areas but cannot read actual prices or quantities | Clear axis labels: price in cents on X-axis, cumulative quantity on Y-axis. Hover tooltips showing exact price/quantity at cursor position |
+| Coverage page showing all markets in a flat list with no filtering | User with 500+ markets cannot find the one they care about | Search/filter by ticker, event, category, status. Sort by coverage date range, delta count, or data freshness. Default sort: most recently active first |
+| Playground "Try an example" that does not work because the market settled | New user's first experience is an error message | Dynamic example selection: query for a market with recent data that is still active. Fallback to pre-baked static response if no live market is suitable |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Replay abstraction:** Often missing empty-result handling -- verify that replaying a time range with no deltas returns an initial snapshot state, not an empty iterator
-- [ ] **Replay abstraction:** Often missing mid-replay credit exhaustion -- verify that a `CreditsExhaustedError` raised on page 150 of 200 still provides the partial results collected so far (or at minimum, the count of credits consumed)
-- [ ] **Pagination loop:** Often missing the "exact multiple" edge case -- verify that when total results = N * page_size, the final page does not trigger an unnecessary extra empty request
-- [ ] **Error mapping:** Often missing mapping for all API error codes -- verify that `credits_exhausted`, `market_not_found`, `no_data_available`, `rate_limit_exceeded`, `invalid_api_key`, and `validation_error` each map to a distinct SDK exception class
-- [ ] **PyPI package:** Often missing `py.typed` marker -- verify with `mypy --strict` that the installed package provides type information
-- [ ] **PyPI package:** Often ships server code -- verify with `tar -tzf dist/*.tar.gz` that only `kalshibook_sdk/` files are included, not `src/api/` or `src/collector/`
-- [ ] **Async client cleanup:** Often missing proper `__aexit__` -- verify that `async with Client(...) as client:` closes the httpx session. Test that using the client without context manager and not calling `close()` raises a ResourceWarning
-- [ ] **Rate limit retry:** Often missing `Retry-After` header parsing -- verify that a 429 response with `Retry-After: 5` causes the SDK to sleep 5 seconds and retry, not use exponential backoff from 1 second
-- [ ] **Timezone handling:** Often missing naive datetime rejection -- verify that `client.get_deltas(start_time=datetime(2026, 1, 1))` (no tzinfo) raises `ValueError`, not a silent UTC assumption
-- [ ] **User-Agent header:** Often missing or generic -- verify that requests include `User-Agent: KalshiBook-Python/X.Y.Z` for API-side analytics and SDK version tracking
-- [ ] **Sync client in notebooks:** Often broken because notebook already has an event loop -- verify that `Client` (sync) works in Jupyter without `nest_asyncio` or `asyncio.run()` hacks
+- [ ] **Replay endpoint:** Often missing `max_time_range` parameter -- verify that requesting a 30-day replay returns a 400 error, not a 10-minute hang followed by OOM
+- [ ] **Replay endpoint:** Often missing interval/downsampling -- verify that a 4-hour replay returns ~240 frames (1/min), not 100,000+ raw delta states
+- [ ] **Coverage table:** Often missing archival-awareness -- verify that coverage stats are the same before and after `archival.py` runs
+- [ ] **Coverage table:** Often missing background refresh -- verify that newly collected data appears in coverage within 5 minutes without a page refresh
+- [ ] **Depth chart animation:** Often missing Canvas rendering -- verify frame rate stays above 30fps with 99 yes levels + 99 no levels animating
+- [ ] **Depth chart animation:** Often missing tab visibility handling -- verify that switching away and back does not cause a time jump or freeze
+- [ ] **Demo data:** Often missing credit-free path -- verify that "Try an example" in the playground costs 0 credits
+- [ ] **Demo data:** Often missing fallback for settled markets -- verify that the demo still works after the example market settles
+- [ ] **Coverage completeness:** Often missing gap awareness -- verify that a market with known sequence gaps shows those gaps in the coverage view
+- [ ] **Replay controls:** Often missing keyboard shortcuts -- verify Space (play/pause), Arrow keys (frame step), and +/- (speed) work during replay
+- [ ] **Coverage dashboard:** Often missing pagination -- verify that loading 500+ markets does not produce a >2-second response time
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Memory explosion in replay (list-based return) | HIGH | Breaking change: `replay_orderbook()` return type changes from `list[OrderbookState]` to `AsyncIterator[OrderbookState]`. Requires major version bump (2.0.0). All user code using `results = replay_orderbook(...)` must change to `async for state in replay_orderbook(...)` |
-| Credit burn surprise (users exhaust credits) | LOW | Add `credit_budget` parameter with backward-compatible default of `None` (unlimited). Add credit tracking to response objects. Non-breaking change, minor version bump |
-| Auto-generated SDK in production | HIGH | Must rewrite from scratch. Generated code is fundamentally different in structure, naming, and error handling from a hand-written SDK. Users who depend on generated class names face a breaking migration |
-| Cursor infinite loop | LOW | Fix the loop guard condition. Add `max_pages` parameter. Patch release. No breaking changes |
-| Dependency conflict (pydantic over-pinned) | MEDIUM | Relax pydantic bound from `>=2.12.5` to `>=2.0,<3`. Test against minimum supported version. Patch release, but users who already gave up and uninstalled need to be re-acquired |
-| Auth confusion (JWT vs API key) | LOW | Improve error messages and add format validation. Patch release. Update docs |
-| API version coupling (SDK breaks on API change) | MEDIUM | Add `extra="ignore"` to all Pydantic models. Add `User-Agent` header. Minor version bump. Existing users must upgrade SDK to stop seeing ValidationErrors |
-| Leaked API key in logs | MEDIUM | Add key masking. Patch release. Cannot un-leak already-logged keys. Users must rotate compromised keys |
+| Browser OOM from unbounded replay data | MEDIUM | Add `max_time_range` and streaming to the endpoint. Frontend code that expects a single JSON response must change to handle streamed data. Not a breaking API change if the replay endpoint was not yet public |
+| Coverage queries scanning all partitions | LOW | Create `market_coverage` table and populate from existing data with a one-time migration. Swap the API endpoint to read from it. Can be done without any frontend changes if the response schema is kept the same |
+| SVG depth chart freezing browser | HIGH | Complete rewrite from SVG React component to Canvas imperative rendering. No code reuse possible. All interaction handlers (hover, click, tooltips) must be reimplemented for Canvas |
+| Demo data burning credits | LOW | Replace live API calls with pre-baked static responses. No database migration needed. Dashboard-only change |
+| Archived data invisible to coverage | MEDIUM | Backfill `market_coverage` table from archive inventory. Write a one-time script to scan Parquet files in Supabase Storage and reconstruct historical coverage. Ongoing fix: update archival code to maintain coverage metadata |
+| N+1 query in coverage endpoint | LOW | Replace correlated subqueries with CTE-based aggregation. Pure SQL change, no API schema change. Alternatively, switch to pre-computed coverage table |
+| Replay tab-switching bug | LOW | Add `visibilitychange` listener and switch to frame-counting. Localized fix in the playback controller, does not affect other components |
+| Misleading completeness percentage | LOW | Replace single number with timeline heatmap visualization. UI change only, does not affect API. Can be done incrementally alongside the existing metric |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Unbounded memory in replay | Phase 1: SDK Core Design | Profile memory during replay of 100K+ deltas. Verify peak memory stays under 50MB regardless of time range. Use `tracemalloc` in tests |
-| Credit burn surprise | Phase 1: SDK Core Design + Phase 2: Replay | Write test that replays with `credit_budget=10` and verifies clean stop at budget. Check response objects include `credits_used` field |
-| Auto-generation producing bad code | Phase 1: SDK Core Design | Decision point: hand-write vs generate. Verify by checking if `replay_orderbook()` exists (generators cannot produce it) |
-| Cursor handling bugs | Phase 2: Pagination | Integration test with exact-multiple page sizes. Test with empty results. Test with invalid cursor. Verify max_pages guard triggers |
-| PyPI packaging mistakes | Phase 3: Packaging | Install from TestPyPI into clean venv. Run `mypy --strict` on consuming code. Verify no server code in package. Test with `pydantic==2.0.0` minimum |
-| Auth token management | Phase 1: SDK Core Design | Unit test: pass JWT → immediate ValueError. Unit test: pass revoked key → AuthenticationError on first call. Integration test: 3 consecutive 401s → persistent auth failure raised |
-| SDK-API version coupling | Phase 1: SDK Core Design | Add unknown field to mock API response → verify SDK still parses correctly. Remove optional field → verify SDK gracefully handles `None` |
-| Dependency conflicts | Phase 3: Packaging | CI matrix testing against pydantic 2.0, 2.5, 2.8, latest. CI matrix against httpx 0.24, 0.27, latest. Verify installation alongside common data science packages (pandas, numpy, polars) |
-| Memory leak from unclosed httpx clients | Phase 1: SDK Core Design | Test client used without context manager → ResourceWarning. Test `async with` → clean close. Test client reuse across 1000 requests → no file descriptor leak |
-| No Jupyter support | Phase 2: Sync Client | Test in actual Jupyter notebook. Verify sync client works without async event loop hacks |
+| Browser memory explosion (unbounded replay) | Replay API | Load test: request a 4-hour replay for an active market. Verify response is streamed (chunked transfer), total payload <5MB, browser memory delta <50MB |
+| Coverage queries scanning all partitions | Market Coverage | EXPLAIN ANALYZE the coverage endpoint query with 100+ markets and 60+ daily partitions. Verify no sequential scans across all partitions. Total query time <100ms |
+| Depth chart freezing browser | Replay Visualization | Profile rendering with Chrome DevTools Performance panel during 60fps playback with 99 yes + 99 no levels. Verify no frame exceeds 16ms (60fps target) |
+| Playground demo burning credits | Playground Data | Verify "Try an example" produces a response with `credits_cost: 0` in the response metadata. Check billing_accounts shows no credit deduction for demo requests |
+| Archived data invisible to coverage | Market Coverage | Run `archival.py` for dates with data. Verify `GET /markets` still shows correct `first_data_at` including pre-archival dates |
+| N+1 query in coverage dashboard | Market Coverage | Load test `GET /markets` with 500 markets. Verify `pg_stat_statements` shows 1-3 queries executed, not 500+. Response time <500ms |
+| Replay tab visibility bug | Replay Visualization | Open replay, switch to another tab for 30 seconds, switch back. Verify replay resumes from the last displayed frame, not 30 seconds ahead |
+| Misleading completeness metric | Market Coverage | Create test market with a known 1-hour gap. Verify coverage view clearly shows the gap visually and numerically, not just "95% complete" |
 
 ## Sources
 
-- [Azure Python SDK Design Guidelines](https://azure.github.io/azure-sdk/python_design.html) -- ItemPaged protocol, sync/async client patterns, error handling philosophy (HIGH confidence)
-- [DigitalOcean Python SDK Generation Post-Mortem](https://www.digitalocean.com/blog/journey-to-python-client-generation) -- OpenAPI generator UNKNOWNBASETYPE failures, polymorphism issues (HIGH confidence)
-- [Speakeasy OSS Python SDK Generator Comparison](https://www.speakeasy.com/docs/sdks/languages/python/oss-comparison-python) -- Feature gaps in openapi-generator: no async, no pagination, no retry (HIGH confidence)
-- [OpenAPI Generator Issue #20826](https://github.com/OpenAPITools/openapi-generator/issues/20826) -- Bug report: generator produces unusable Python clients (HIGH confidence)
-- [PyPI Trusted Publishers Documentation](https://docs.pypi.org/trusted-publishers/) -- OIDC-based publishing, no API tokens needed (HIGH confidence)
-- [PyPI Trusted Publisher Pitfalls](https://dreamnetworking.nl/blog/2025/01/07/pypi-trusted-publisher-management-and-pitfalls/) -- Name mismatch, hyphen/underscore confusion (HIGH confidence)
-- [Python Rate Limiting Library Analysis](https://gist.github.com/justinvanwinkle/d9f04950083c4554835c1a35f9d22dad) -- Most Python rate limiting libraries are broken under concurrency (HIGH confidence)
-- [Pydantic Dependency Conflict Issues](https://github.com/pydantic/pydantic/discussions/10670) -- pydantic-core version coupling breaks downstream packages (HIGH confidence)
-- [Backtrader Memory Management](https://www.backtrader.com/blog/2019-10-25-on-backtesting-performance-and-out-of-memory/on-backtesting-performance-and-out-of-memory/) -- exactbars pattern for fixed-memory backtesting (MEDIUM confidence)
-- [REST API SDK Design Patterns Analysis](https://vineeth.io/posts/sdk-development) -- Singleton vs OOP patterns, essential SDK capabilities (MEDIUM confidence)
-- [Python Packaging User Guide](https://packaging.python.org/) -- Modern pyproject.toml packaging, build system configuration (HIGH confidence)
-- [PEP 387 Backwards Compatibility Policy](https://peps.python.org/pep-0387/) -- Deprecation process, 2-year minimum deprecation period (HIGH confidence)
-- [Semantic Versioning 2.0.0](https://semver.org/) -- Major.Minor.Patch versioning rules (HIGH confidence)
-- KalshiBook API source code analysis -- `src/api/routes/deltas.py`, `src/api/deps.py`, `src/api/services/billing.py`, `src/api/errors.py`, `src/api/models.py` (HIGH confidence, direct codebase inspection)
+- [PostgreSQL Documentation: Table Partitioning](https://www.postgresql.org/docs/current/ddl-partitioning.html) -- Partition pruning behavior, `enable_partitionwise_aggregate`, planning time growth with partition count (HIGH confidence)
+- [PostgresAI: How Does Planning Time Depend on Number of Partitions](https://postgres.ai/blog/20241003-how-does-planning-time-depend-on-number-of-partitions) -- Quantified planning time growth: 12ms at 1000 partitions (HIGH confidence)
+- [pganalyze: Partition-wise Joins and Aggregates](https://pganalyze.com/blog/5mins-postgres-partition-wise-joins-aggregates-query-performance) -- `enable_partitionwise_aggregate` disabled by default due to CPU/memory cost (HIGH confidence)
+- [CYBERTEC: Killing Performance with PostgreSQL Partitioning](https://www.cybertec-postgresql.com/en/killing-performance-with-postgresql-partitioning/) -- Cross-partition aggregate performance pitfalls (HIGH confidence)
+- [Zigpoll: Frontend Data Visualization Optimization](https://www.zigpoll.com/content/how-can-we-optimize-the-frontend-data-visualization-components-to-handle-largescale-realtime-datasets-without-compromising-performance-or-user-experience) -- LTTB downsampling, rolling window, DOM batching, incremental updates (MEDIUM confidence)
+- [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) -- Canvas 2D rendering (not WebGL), performant with thousands of bars, React integration patterns (HIGH confidence)
+- [CoinAPI: Crypto Order Book Replay Guide](https://www.coinapi.io/blog/crypto-order-book-replay) -- Snapshot + diff replay, sequence-aligned reconstruction (MEDIUM confidence)
+- [Nordic APIs: API Sandbox Best Practices](https://nordicapis.com/7-best-practices-for-api-sandboxes/) -- Free sandbox credits, authentication in sandbox, usage monitoring (MEDIUM confidence)
+- [Plaid Sandbox Documentation](https://plaid.com/docs/sandbox/) -- Industry pattern for free demo/sandbox environments separate from production billing (HIGH confidence)
+- [Next.js Streaming Documentation](https://nextjs.org/docs/14/app/building-your-application/routing/loading-ui-and-streaming) -- App Router streaming with ReadableStream, progressive rendering (HIGH confidence)
+- [HackerNoon: Streaming in Next.js 15](https://hackernoon.com/streaming-in-nextjs-15-websockets-vs-server-sent-events) -- SSE vs WebSocket for Next.js streaming use cases (MEDIUM confidence)
+- KalshiBook codebase analysis: `src/api/services/reconstruction.py`, `src/api/routes/markets.py`, `src/api/routes/orderbook.py`, `src/api/deps.py`, `src/api/services/billing.py`, `src/collector/writer.py`, `src/collector/archival.py`, `supabase/migrations/`, `dashboard/src/components/playground/` (HIGH confidence, direct codebase inspection)
 
 ---
-*Pitfalls research for: Python SDK + Backtesting Abstractions for KalshiBook API*
-*Researched: 2026-02-17*
+*Pitfalls research for: Discovery, Replay & Coverage Features for KalshiBook*
+*Researched: 2026-02-18*

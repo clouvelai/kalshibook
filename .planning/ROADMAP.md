@@ -40,8 +40,8 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full details.
 
 **Milestone Goal:** Make the API foundation production-ready and compelling -- users can discover available market data, see real tickers in the playground, and visually explore orderbook depth at any covered timestamp.
 
-- [ ] **Phase 13: Market Coverage Discovery** — Browsable, searchable market coverage with pre-computed segment stats
-- [ ] **Phase 14: Playground Upgrade** — Real tickers, autocomplete, example cards, and zero-credit demos
+- [x] **Phase 13: Market Coverage Discovery** — Browsable, searchable market coverage with pre-computed segment stats (completed 2026-02-18)
+- [x] **Phase 14: Playground Upgrade** — Real tickers, autocomplete, example cards, and zero-credit demos (completed 2026-02-18)
 - [ ] **Phase 15: Depth Chart Visualization** — Canvas-rendered orderbook depth chart embedded in the playground
 
 ## Phase Details
@@ -71,7 +71,7 @@ Plans:
   2. User can type partial ticker text and get autocomplete suggestions from markets with confirmed data coverage
   3. Playground shows example cards with pre-populated queries for common use cases (orderbook reconstruction, trade history, candles) that execute with one click
   4. All playground demo interactions cost zero credits -- served via dashboard-internal endpoint or pre-baked responses, not through the billed API path
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 14-01-PLAN.md -- Backend playground endpoints (market search + demo execution) and shadcn component install
@@ -111,6 +111,6 @@ Phases execute in numeric order: 13 → 14 → 15
 | 10. Client Class & Data Endpoints | v1.1 | 2/2 | Complete | 2026-02-17 |
 | 11. Pagination & DataFrame Support | v1.1 | 2/2 | Complete | 2026-02-17 |
 | 12. Documentation & PyPI Publishing | v1.1 | 3/3 | Complete | 2026-02-18 |
-| 13. Market Coverage Discovery | v1.2 | 0/? | Not started | - |
-| 14. Playground Upgrade | v1.2 | 0/? | Not started | - |
+| 13. Market Coverage Discovery | v1.2 | 2/2 | Complete | 2026-02-18 |
+| 14. Playground Upgrade | v1.2 | 2/2 | Complete | 2026-02-18 |
 | 15. Depth Chart Visualization | v1.2 | 0/? | Not started | - |

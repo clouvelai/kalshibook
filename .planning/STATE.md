@@ -51,5 +51,6 @@ v1.2 research decisions:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Roadmap created for v1.2 milestone
-Resume: `/gsd:plan-phase 13` to begin Market Coverage Discovery
+Stopped at: Phase 13 context gathered
+Resume: `/gsd:plan-phase 13` to plan Market Coverage Discovery
+Resume file: .planning/phases/13-market-coverage-discovery/13-CONTEXT.md

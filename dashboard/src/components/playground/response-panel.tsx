@@ -4,7 +4,9 @@ import { Terminal, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CodeBlock } from "@/components/playground/code-block";
-import { OrderbookPreview } from "@/components/playground/orderbook-preview";
+import { OrderbookPreview, isOrderbookData } from "@/components/playground/orderbook-preview";
+import type { OrderbookData } from "@/components/playground/orderbook-preview";
+import { DepthChart } from "@/components/playground/depth-chart";
 import type { PlaygroundResult } from "@/lib/playground";
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,7 @@ export function ResponsePanel({ response, isLoading }: ResponsePanelProps) {
   // Response state (response is guaranteed non-null here)
   // -------------------------------------------------------------------------
   const { data, status, responseTime, creditsDeducted } = response!;
+  const showDepth = isOrderbookData(data);
 
   return (
     <div>
@@ -76,12 +79,13 @@ export function ResponsePanel({ response, isLoading }: ResponsePanelProps) {
         )}
       </div>
 
-      {/* JSON | Preview sub-tabs */}
+      {/* JSON | Preview | Depth sub-tabs */}
       <Tabs defaultValue="json" className="w-full">
         <div className="px-4 pt-3">
           <TabsList>
             <TabsTrigger value="json">JSON</TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
+            {showDepth && <TabsTrigger value="depth">Depth</TabsTrigger>}
           </TabsList>
         </div>
 
@@ -95,6 +99,16 @@ export function ResponsePanel({ response, isLoading }: ResponsePanelProps) {
         <TabsContent value="preview" className="pb-4">
           <OrderbookPreview data={data} />
         </TabsContent>
+
+        {showDepth && (
+          <TabsContent value="depth" className="px-4 pb-4 pt-2">
+            <DepthChart
+              yes={(data as OrderbookData).yes}
+              no={(data as OrderbookData).no}
+              className="h-[400px] w-full"
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

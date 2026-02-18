@@ -138,3 +138,33 @@ export interface CoverageStatsResponse {
   request_id: string;
   response_time: number;
 }
+
+/** Playground types */
+
+export interface PlaygroundMarket {
+  ticker: string;
+  title: string | null;
+  status: string | null;
+  event_ticker: string | null;
+  first_date: string | null;
+  last_date: string | null;
+}
+
+export interface DemoRequest {
+  endpoint: "orderbook" | "trades" | "candles";
+  market_ticker: string;
+  timestamp?: string;
+  depth?: number;
+  start_time?: string;
+  end_time?: string;
+  interval?: string;
+  limit?: number;
+}
+
+export interface DemoResponse {
+  endpoint: string;
+  data: unknown;
+  response_time: number;
+  request_id: string;
+  credits_cost: number;
+}

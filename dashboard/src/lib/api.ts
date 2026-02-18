@@ -7,8 +7,11 @@ import type {
   BillingStatus,
   CheckoutResponse,
   CoverageStatsResponse,
+  DemoRequest,
+  DemoResponse,
   KeyUsageItem,
   PaygToggleResponse,
+  PlaygroundMarket,
   PortalResponse,
 } from "@/types/api";
 
@@ -128,6 +131,18 @@ export const api = {
     refresh: () =>
       fetchAPI<{ message: string; request_id: string }>("/coverage/refresh", {
         method: "POST",
+      }),
+  },
+
+  playground: {
+    markets: (q: string, limit = 10) =>
+      fetchAPI<{ data: PlaygroundMarket[]; request_id: string }>(
+        `/playground/markets?q=${encodeURIComponent(q)}&limit=${limit}`
+      ),
+    demo: (body: DemoRequest) =>
+      fetchAPI<DemoResponse>("/playground/demo", {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
   },
 };

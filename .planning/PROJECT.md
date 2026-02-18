@@ -34,16 +34,21 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 
 ### Active
 
+- [ ] Market coverage visibility (which markets have data, date ranges, completeness)
+- [ ] Populate playground with real captured market tickers
+- [ ] Orderbook replay visualization in playground (depth + price over time)
+- [ ] Pricing validation against real data volumes
+
+### Future
+
 - [ ] Python SDK backtesting abstractions (replay_orderbook, stream_trades)
 - [ ] Credit budget parameter for large SDK queries
 - [ ] Stream real-time orderbook updates to subscribers via websocket
 - [ ] Real-time streaming requires valid API key authentication on connect
-
-### Future
-
 - [ ] TypeScript SDK auto-generated from OpenAPI spec
 - [ ] MCP server exposing KalshiBook endpoints as AI agent tools
 - [ ] Downloadable flat files (CSV/Parquet) for bulk backtesting
+- [ ] Public landing page with marketing-ready demo
 
 ### Out of Scope
 
@@ -111,5 +116,15 @@ Reliable, complete orderbook history for every Kalshi market — reconstructable
 | PageIterator with eager first-page fetch | Errors surface at call time, not during iteration | ✓ Good — better DX |
 | mkdocs-material with gen-files/literate-nav | Auto-generated API reference from NumPy docstrings | ✓ Good |
 
+## Current Milestone: v1.2 Discovery & Replay
+
+**Goal:** Make the API foundation production-ready and compelling — users can discover available market data, see real tickers in the playground, and visually replay orderbook depth + price over time.
+
+**Target features:**
+- Market coverage visibility (available markets, date ranges, data completeness)
+- Playground populated with real captured market data
+- Orderbook replay visualization (depth chart + price animation)
+- Pricing validation against real usage patterns
+
 ---
-*Last updated: 2026-02-18 after v1.1 milestone*
+*Last updated: 2026-02-18 after v1.2 milestone start*

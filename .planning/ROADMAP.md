@@ -86,11 +86,10 @@ Plans:
   2. Depth chart renders using HTML Canvas (not SVG) to support future animation without a rewrite
   3. Depth chart is accessible as a tab in the playground alongside the existing API response view
   4. Selecting a different market or timestamp in the playground updates the depth chart accordingly
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 15-01: TBD
-- [ ] 15-02: TBD
+- [ ] 15-01-PLAN.md -- Canvas depth chart component + response panel tab integration
 
 ## Progress
 

@@ -12,7 +12,7 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: dist
-          path: sdk/dist/
+          path: dist/
   publish:
     needs: build
     runs-on: ubuntu-latest

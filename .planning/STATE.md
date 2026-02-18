@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Phase 14 complete — ready for Phase 15
+**Current focus:** Phase 15 complete — v1.2 milestone ready for verification
 
 ## Current Position
 
-Phase: 14 of 15 (Playground Upgrade) — COMPLETE
-Plan: 2 of 2 complete
-Status: Phase complete, verified
-Last activity: 2026-02-18 — Completed 14-02 frontend integration + playground wiring
+Phase: 15 of 15 (Depth Chart Visualization) — COMPLETE
+Plan: 1 of 1 complete
+Status: Phase complete, pending verification
+Last activity: 2026-02-18 — Completed 15-01 Canvas depth chart + response panel integration
 
 Progress: [██████████████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33
+- Total plans completed: 34
 - Average duration: 3min
 - Total execution time: ~1.2 hours
 
@@ -29,6 +29,7 @@ Progress: [███████████████████████
 | 13    | 02   | 3min     | 2     | 9     |
 | 14    | 01   | 3min     | 2     | 7     |
 | 14    | 02   | 3min     | 2     | 7     |
+| 15    | 01   | 2min     | 2     | 3     |
 
 *Prior metrics carried forward from v1.1*
 
@@ -58,6 +59,11 @@ v1.2 execution decisions (Phase 14):
 - Featured market fetched as empty-query limit-1 -- returns most recent coverage data
 - Example card timestamps computed as midpoint of coverage range -- guarantees data exists
 
+v1.2 execution decisions (Phase 15):
+- No charting library -- raw Canvas 2D for ~250 lines total, zero bundle impact
+- Fixed 0-100 cent X-axis eliminates dynamic scaling complexity
+- Default tab stays "json" -- no auto-switching to depth tab on orderbook responses
+
 ### Pending Todos
 
 1. **Subscribe to ticker WS channel for open interest data** (collector)
@@ -72,6 +78,6 @@ v1.2 execution decisions (Phase 14):
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 14 complete (both plans executed)
-Resume: `/gsd:verify-work 14` or `/gsd:plan-phase 15` for Depth Chart Visualization
-Resume file: .planning/phases/14-playground-upgrade/14-02-SUMMARY.md
+Stopped at: Phase 15 complete (1/1 plan executed) — v1.2 milestone all phases done
+Resume: `/gsd:verify-work 15` or `/gsd:complete-milestone`
+Resume file: .planning/phases/15-depth-chart-visualization/15-01-SUMMARY.md

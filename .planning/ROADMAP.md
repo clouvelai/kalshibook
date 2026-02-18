@@ -42,7 +42,7 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full details.
 
 - [x] **Phase 13: Market Coverage Discovery** — Browsable, searchable market coverage with pre-computed segment stats (completed 2026-02-18)
 - [x] **Phase 14: Playground Upgrade** — Real tickers, autocomplete, example cards, and zero-credit demos (completed 2026-02-18)
-- [ ] **Phase 15: Depth Chart Visualization** — Canvas-rendered orderbook depth chart embedded in the playground
+- [x] **Phase 15: Depth Chart Visualization** — Canvas-rendered orderbook depth chart embedded in the playground (completed 2026-02-18)
 
 ## Phase Details
 
@@ -86,7 +86,7 @@ Plans:
   2. Depth chart renders using HTML Canvas (not SVG) to support future animation without a rewrite
   3. Depth chart is accessible as a tab in the playground alongside the existing API response view
   4. Selecting a different market or timestamp in the playground updates the depth chart accordingly
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 15-01-PLAN.md -- Canvas depth chart component + response panel tab integration
@@ -112,4 +112,4 @@ Phases execute in numeric order: 13 → 14 → 15
 | 12. Documentation & PyPI Publishing | v1.1 | 3/3 | Complete | 2026-02-18 |
 | 13. Market Coverage Discovery | v1.2 | 2/2 | Complete | 2026-02-18 |
 | 14. Playground Upgrade | v1.2 | 2/2 | Complete | 2026-02-18 |
-| 15. Depth Chart Visualization | v1.2 | 0/? | Not started | - |
+| 15. Depth Chart Visualization | 1/1 | Complete   | 2026-02-18 | - |

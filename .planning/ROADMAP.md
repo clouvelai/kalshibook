@@ -71,11 +71,11 @@ Plans:
   2. User can type partial ticker text and get autocomplete suggestions from markets with confirmed data coverage
   3. Playground shows example cards with pre-populated queries for common use cases (orderbook reconstruction, trade history, candles) that execute with one click
   4. All playground demo interactions cost zero credits -- served via dashboard-internal endpoint or pre-baked responses, not through the billed API path
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
+- [ ] 14-01-PLAN.md -- Backend playground endpoints (market search + demo execution) and shadcn component install
+- [ ] 14-02-PLAN.md -- Frontend integration (TickerCombobox, ExampleCards, playground wiring)
 
 ### Phase 15: Depth Chart Visualization
 **Goal**: Users can visually inspect orderbook depth at any covered timestamp, rendered as a Canvas-based chart in the playground

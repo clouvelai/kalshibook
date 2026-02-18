@@ -69,25 +69,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COVR-01 | TBD | Pending |
-| COVR-02 | TBD | Pending |
-| COVR-03 | TBD | Pending |
-| COVR-04 | TBD | Pending |
-| COVR-05 | TBD | Pending |
-| PLAY-01 | TBD | Pending |
-| PLAY-02 | TBD | Pending |
-| PLAY-03 | TBD | Pending |
-| PLAY-04 | TBD | Pending |
-| PLAY-05 | TBD | Pending |
-| DPTH-01 | TBD | Pending |
-| DPTH-02 | TBD | Pending |
-| DPTH-03 | TBD | Pending |
+| COVR-01 | Phase 13 | Pending |
+| COVR-02 | Phase 13 | Pending |
+| COVR-03 | Phase 13 | Pending |
+| COVR-04 | Phase 13 | Pending |
+| COVR-05 | Phase 13 | Pending |
+| PLAY-01 | Phase 14 | Pending |
+| PLAY-02 | Phase 14 | Pending |
+| PLAY-03 | Phase 14 | Pending |
+| PLAY-04 | Phase 14 | Pending |
+| PLAY-05 | Phase 15 | Pending |
+| DPTH-01 | Phase 15 | Pending |
+| DPTH-02 | Phase 15 | Pending |
+| DPTH-03 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13 (populated during roadmap creation)
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-18*
-*Last updated: 2026-02-18 after initial definition*
+*Last updated: 2026-02-18 after roadmap creation*

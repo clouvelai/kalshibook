@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Reliable, complete orderbook history for every Kalshi market -- reconstructable to any point in time
-**Current focus:** Defining requirements for v1.2 Discovery & Replay
+**Current focus:** Phase 13 — Market Coverage Discovery
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-18 — Milestone v1.2 started
+Phase: 13 of 15 (Market Coverage Discovery)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-02-18 — Roadmap created for v1.2
 
 Progress: [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0%
 
@@ -31,11 +31,18 @@ Progress: [░░░░░░░░░░░░░░░░░░░░░░░
 
 All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions tables with outcomes.
 
+v1.2 research decisions:
+- Coverage must use materialized view (not live partition scans) — performance at scale
+- Coverage modeled as segments (contiguous ranges with gaps), not first/last timestamps
+- Depth chart must use Canvas (not SVG) — future animation support, no rewrite path from SVG
+- Playground demos must cost zero credits — dashboard-internal endpoint or pre-baked responses
+- Replay animation deferred to v1.3 — ship static depth chart first
+
 ### Pending Todos
 
 1. **Subscribe to ticker WS channel for open interest data** (collector)
 2. **Fetch Kalshi event candlesticks for untracked markets** (api)
-3. **Pre-populate playground with real captured market data** (dashboard)
+3. **Pre-populate playground with real captured market data** (dashboard) — addressed by PLAY-01
 
 ### Blockers/Concerns
 
@@ -44,5 +51,5 @@ All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions tables with outco
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Defining v1.2 requirements
-Resume: Continue requirements → roadmap
+Stopped at: Roadmap created for v1.2 milestone
+Resume: `/gsd:plan-phase 13` to begin Market Coverage Discovery
